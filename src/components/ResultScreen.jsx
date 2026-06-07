@@ -1,8 +1,22 @@
 import { STRIKES_WIN } from "../constants"
 
 export default function ResultScreen({ players, result, onNext }) {
-  const { loserIdx, newStrikes, seriesWinnerIdx, gameName } = result
-  const eliminated = newStrikes >= STRIKES_WIN
+  const { loserIdx, newStrikes = 0, seriesWinnerIdx, gameName, mode = "full" } = result
+  const isSingleGame = mode === "single"
+  const eliminated = !isSingleGame && newStrikes >= STRIKES_WIN
+
+  if (isSingleGame) {
+    return (
+      <div className="result-screen">
+        <div className="rs-label">BEST OF 3 WINNER</div>
+        <div className={`rs-name ${seriesWinnerIdx === 0 ? "t-pink" : "t-cyan"}`}>{players[seriesWinnerIdx].name}</div>
+        <div className="rs-winner" style={{ marginTop: 4 }}>
+          🏆 Beat {players[loserIdx].name} at {gameName}
+        </div>
+        <button className="btn btn-go" onClick={onNext} style={{ marginTop: 12 }}>PICK ANOTHER GAME 🎯</button>
+      </div>
+    )
+  }
 
   return (
     <div className="result-screen">
