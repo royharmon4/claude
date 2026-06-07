@@ -1,0 +1,27 @@
+.glow-pink {
+  text-shadow: 0 0 5px rgba(255, 45, 110, 0.65), 0 0 12px rgba(255, 45, 110, 0.22) !important;
+}
+
+.glow-cyan {
+  text-shadow: 0 0 5px rgba(0, 229, 255, 0.65), 0 0 12px rgba(0, 229, 255, 0.22) !important;
+}
+
+.glow-gold {
+  text-shadow: 0 0 5px rgba(255, 215, 0, 0.62), 0 0 12px rgba(255, 215, 0, 0.22) !important;
+}
+
+.fs-winner {
+  animation: softShimmer 2.8s linear infinite !important;
+}
+
+@keyframes softShimmer {
+  0%, 100% {
+    color: #ffd700;
+    text-shadow: 0 0 5px rgba(255, 215, 0, 0.62), 0 0 12px rgba(255, 215, 0, 0.22);
+  }
+
+  50% {
+    color: #fff7c8;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.45), 0 0 12px rgba(255, 215, 0, 0.2);
+  }
+}
