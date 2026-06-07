@@ -1,10 +1,9 @@
 import React from "react"
 import { createRoot } from "react-dom/client"
-import App from "./App.jsx"
-import "./glow-overrides.css"
+import AppSeries from "./AppSeries.jsx"
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <AppSeries />
   </React.StrictMode>
 )
