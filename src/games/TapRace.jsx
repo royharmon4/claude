@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useLatest } from "../hooks/useLatest"
 import { useTimers } from "../hooks/useTimers"
 import { chooseLoser } from "../utils/random"
 
@@ -18,6 +19,7 @@ export default function TapRace({ players, onResult }) {
   const [done, setDone] = useState(false)
   const countsRef = useRef([0, 0])
   const doneRef = useRef(false)
+  const onResultRef = useLatest(onResult)
   const { addTimeout, addInterval } = useTimers()
 
   useEffect(() => {
@@ -34,11 +36,11 @@ export default function TapRace({ players, onResult }) {
           window.clearInterval(id)
           doneRef.current = true
           setDone(true)
-          addTimeout(() => onResult(chooseLoser(countsRef.current[0], countsRef.current[1])), 1200)
+          addTimeout(() => onResultRef.current(chooseLoser(countsRef.current[0], countsRef.current[1])), 1200)
         }
       }, 1000)
     }, 3300)
-  }, [])
+  }, [addInterval, addTimeout, onResultRef])
 
   const tap = (idx) => {
     if (countdown !== -1 || doneRef.current) return
