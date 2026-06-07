@@ -6,7 +6,7 @@ const FAKE_COMMANDS = ["DON'T TAP", "WAIT!", "NOT YET", "HOLD", "FREEZE", "NOPE"
 
 function SplitZone({ idx, state, color, top, title, subtitle, name, onTap }) {
   const stateClass = state === "go" ? "zone-go" : state === "early" ? "zone-early" : state === "won" ? "zone-won" : state === "lost" ? "zone-lost" : "zone-wait"
-  const textColor = state === "go" || state === "won" ? "#00e5ff" : state === "early" || state === "lost" ? "#ff4444" : "rgba(255,255,255,.54)"
+  const textColor = state === "go" || state === "won" ? "#00e5ff" : state === "early" || state === "lost" ? "#ff4444" : state === "tie" ? "#ffd700" : "rgba(255,255,255,.54)"
   return (
     <div className={`split-zone ${top ? "top" : ""} ${color} ${stateClass}`} onPointerDown={(e) => { e.preventDefault(); onTap(idx) }}>
       <div className="command-text" style={{ color: textColor }}>{title}</div>
@@ -51,9 +51,8 @@ export default function CommandDuel({ players, onResult, fakeout = false }) {
       addTimeout(() => {
         if (doneRef.current) return
         doneRef.current = true
-        const loser = Math.random() < 0.5 ? 0 : 1
-        setZones((old) => old.map((_, i) => (i === loser ? "lost" : "won")))
-        addTimeout(() => onResultRef.current(loser), 950)
+        setZones(["tie", "tie"])
+        addTimeout(() => onResultRef.current(null), 950)
       }, fakeout ? 2600 : 4000)
     }, delay)
   }, [addTimeout, fakeout, onResultRef])
@@ -75,6 +74,7 @@ export default function CommandDuel({ players, onResult, fakeout = false }) {
   const status = (idx) => {
     if (zones[idx] === "won") return ["YOU WIN!", ""]
     if (zones[idx] === "lost") return ["YOU LOSE!", ""]
+    if (zones[idx] === "tie") return ["NO TAP!", "Replay point"]
     if (zones[idx] === "early") return [fakeout ? "FAKEOUT!" : "TOO EARLY!", "Tapped too soon"]
     if (fakeout) return [players[idx].name, ""]
     if (command.kind === "go") return ["TAP NOW!", "GO GO GO!"]
