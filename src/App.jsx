@@ -1,6 +1,6 @@
 import { useState } from "react"
 import "./app-next.css"
-import { LS_HIST, LS_NAMES, SERIES_WIN, STRIKES_WIN } from "./constants"
+import { HISTORY_LIMIT, LS_HIST, LS_NAMES, SERIES_WIN, STRIKES_WIN } from "./constants"
 import { pickGame } from "./utils/random"
 import { readStorage, writeStorage } from "./utils/storage"
 import Scoreboard from "./components/Scoreboard"
@@ -53,29 +53,26 @@ export default function App() {
     }
 
     const seriesLoserIdx = 1 - pointWinnerIdx
+    const newStrikes = players[seriesLoserIdx].strikes + 1
+    const nextPlayers = players.map((player, idx) => idx === seriesLoserIdx ? { ...player, strikes: newStrikes } : player)
+
     setSeriesWins([0, 0])
     setPointResult(null)
+    setPlayers(nextPlayers)
+    setResult({ loserIdx: seriesLoserIdx, newStrikes, seriesWinnerIdx: pointWinnerIdx, gameName: game.name })
 
-    setPlayers((currentPlayers) => {
-      const newStrikes = currentPlayers[seriesLoserIdx].strikes + 1
-      const nextPlayers = currentPlayers.map((player, idx) => idx === seriesLoserIdx ? { ...player, strikes: newStrikes } : player)
-      setResult({ loserIdx: seriesLoserIdx, newStrikes, seriesWinnerIdx: pointWinnerIdx, gameName: game.name })
-
-      if (newStrikes >= STRIKES_WIN) {
-        const entry = {
-          winner: nextPlayers[pointWinnerIdx].name,
-          loser: nextPlayers[seriesLoserIdx].name,
-          date: new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
-        }
-        setHistory((prev) => {
-          const nextHistory = [entry, ...prev].slice(0, 10)
-          writeStorage(LS_HIST, nextHistory)
-          return nextHistory
-        })
+    if (newStrikes >= STRIKES_WIN) {
+      const entry = {
+        winner: nextPlayers[pointWinnerIdx].name,
+        loser: nextPlayers[seriesLoserIdx].name,
+        date: new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
       }
-
-      return nextPlayers
-    })
+      setHistory((prev) => {
+        const nextHistory = [entry, ...prev].slice(0, HISTORY_LIMIT)
+        writeStorage(LS_HIST, nextHistory)
+        return nextHistory
+      })
+    }
 
     setScreen("result")
   }
