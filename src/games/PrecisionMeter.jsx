@@ -49,6 +49,9 @@ export default function PrecisionMeter({ players, onResult, variant }) {
     window.setTimeout(start, 80)
   }
 
+  const accuracyValue = (d) => Math.round(Math.max(0, Math.min(100, 100 - d * (variant === "balance" ? 1.3 : 2))))
+  const accuracy = (d) => `${accuracyValue(d)}%`
+
   const tap = () => {
     if (phase !== "p0-play" && phase !== "p1-play") return
     stop()
@@ -60,12 +63,11 @@ export default function PrecisionMeter({ players, onResult, variant }) {
       const s0 = scores[0]
       setScores([s0, dist])
       setPhase("done")
-      window.setTimeout(() => onResult(chooseLoser(s0, dist, true)), 1200)
+      window.setTimeout(() => onResult(chooseLoser(accuracyValue(s0), accuracyValue(dist))), 1200)
     }
   }
 
   const label = variant === "balance" ? "Balance Meter" : "Stop the Bar"
-  const accuracy = (d) => `${Math.max(0, Math.min(100, 100 - d * (variant === "balance" ? 1.3 : 2))).toFixed(0)}%`
 
   if (phase === "p0-ready") {
     return <div className="mini-outer"><div className="bang t-pink" style={{ fontSize: 32 }}>{players[0].name}<br />YOU'RE UP FIRST</div><div className="command-sub">{variant === "balance" ? "Stop the needle as close to upright center as possible." : "Stop the bar as close to center as possible."}</div><button className="btn btn-go" onClick={() => play("p0-play")}>START!</button></div>
@@ -73,7 +75,7 @@ export default function PrecisionMeter({ players, onResult, variant }) {
 
   if (phase === "handoff") return <PassTo name={players[1].name} color="#00e5ff" info={`${players[0].name}: ${accuracy(scores[0])} — beat it.`} onReady={() => play("p1-play")} />
 
-  if (phase === "done") return <div className="mini-outer"><div className="bang t-gold" style={{ fontSize: 40 }}>RESULTS!</div><div className="score-row"><div><span className="t-pink">{players[0].name}</span><br />{accuracy(scores[0])}</div><div><span className="t-cyan">{players[1].name}</span><br />{accuracy(scores[1])}</div></div><div className="command-sub">Closest to center wins this point.</div></div>
+  if (phase === "done") return <div className="mini-outer"><div className="bang t-gold" style={{ fontSize: 40 }}>RESULTS!</div><div className="score-row"><div><span className="t-pink">{players[0].name}</span><br />{accuracy(scores[0])}</div><div><span className="t-cyan">{players[1].name}</span><br />{accuracy(scores[1])}</div></div><div className="command-sub">Highest accuracy wins. Same accuracy is a replay.</div></div>
 
   const player = phase.startsWith("p0") ? 0 : 1
   return (
