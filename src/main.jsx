@@ -1,9 +1,9 @@
 import React from "react"
 import { createRoot } from "react-dom/client"
-import AppHigherLower from "./AppHigherLower.jsx"
+import AppDeckHigherLower from "./AppDeckHigherLower.jsx"
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AppHigherLower />
+    <AppDeckHigherLower />
   </React.StrictMode>
 )
