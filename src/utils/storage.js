@@ -9,6 +9,7 @@ export function readStorage(key, fallback) {
 }
 
 export function writeStorage(key, value) {
+  if (typeof window === "undefined") return
   try {
     window.localStorage.setItem(key, JSON.stringify(value))
   } catch {
