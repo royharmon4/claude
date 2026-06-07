@@ -12,6 +12,8 @@ function makeChallenge() {
   return { shown, missing, choices: shuffle([missing, ...shown.slice(0, 3)]) }
 }
 
+const displayedHundredths = (ms) => Math.round(ms / 10)
+
 export default function SneakyMemory({ players, onResult }) {
   const [challenge] = useState(() => makeChallenge())
   const [phase, setPhase] = useState("show-p0")
@@ -36,7 +38,7 @@ export default function SneakyMemory({ players, onResult }) {
     if (a.correct !== b.correct) {
       loser = a.correct ? 1 : 0
     } else if (a.correct && b.correct) {
-      loser = chooseLoser(a.time, b.time, true)
+      loser = chooseLoser(displayedHundredths(a.time), displayedHundredths(b.time), true)
     }
 
     addTimeout(() => onResult(loser), 1500)
