@@ -2,7 +2,7 @@ import { GAMES } from "../data/games"
 
 export default function GameSelectScreen({ players, onSelect, onBack }) {
   return (
-    <div className="screen game-select-screen">
+    <div className="screen" style={{ paddingBottom: 18 }}>
       <div>
         <div className="setup-logo glow-gold t-gold" style={{ fontSize: 44 }}>PICK A GAME</div>
         <div className="setup-sub" style={{ marginTop: 6 }}>
@@ -10,14 +10,30 @@ export default function GameSelectScreen({ players, onSelect, onBack }) {
         </div>
       </div>
 
-      <div className="game-gallery">
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
         {GAMES.map((game) => (
-          <button key={game.id} className="game-card" onClick={() => onSelect(game)}>
-            <span className="game-card-emoji">{game.emoji}</span>
-            <span className="game-card-main">
-              <span className="game-card-name">{game.name}</span>
-              <span className="game-card-type">{game.type === "sim" ? "Simultaneous" : "Pass & play"}</span>
-              <span className="game-card-rules">{game.rules}</span>
+          <button
+            key={game.id}
+            className="card"
+            onClick={() => onSelect(game)}
+            style={{
+              color: "#fff",
+              display: "grid",
+              gridTemplateColumns: "54px 1fr",
+              gap: 12,
+              alignItems: "center",
+              textAlign: "left",
+              padding: 14,
+              width: "100%",
+            }}
+          >
+            <span style={{ fontSize: 40, lineHeight: 1, textAlign: "center" }}>{game.emoji}</span>
+            <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+              <span className="bang" style={{ fontSize: 23, letterSpacing: 1.4 }}>{game.name}</span>
+              <span style={{ fontSize: 12, color: "#00e5ff", letterSpacing: 2, textTransform: "uppercase" }}>
+                {game.type === "sim" ? "Simultaneous" : "Pass & play"}
+              </span>
+              <span style={{ fontSize: 14, color: "rgba(255,255,255,.58)", lineHeight: 1.25 }}>{game.rules}</span>
             </span>
           </button>
         ))}
