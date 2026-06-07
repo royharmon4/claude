@@ -17,7 +17,7 @@ export function pickGame(recent = []) {
 }
 
 export function chooseLoser(scoreA, scoreB, lowerIsBetter = false) {
-  if (scoreA === scoreB) return Math.random() < 0.5 ? 0 : 1
+  if (scoreA === scoreB) return null
   if (lowerIsBetter) return scoreA < scoreB ? 1 : 0
   return scoreA > scoreB ? 1 : 0
 }
