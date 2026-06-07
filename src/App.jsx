@@ -9,6 +9,7 @@ import GameSelectScreen from "./components/GameSelectScreen"
 import GameIntroScreen from "./components/GameIntroScreen"
 import GameRouter from "./components/GameRouter"
 import PointScreen from "./components/PointScreen"
+import TieScreen from "./components/TieScreen"
 import ResultScreen from "./components/ResultScreen"
 import FinalScreen from "./components/FinalScreen"
 
@@ -28,6 +29,7 @@ export default function App() {
   const [game, setGame] = useState(null)
   const [result, setResult] = useState(null)
   const [pointResult, setPointResult] = useState(null)
+  const [tieResult, setTieResult] = useState(null)
   const [seriesWins, setSeriesWins] = useState([0, 0])
   const [recentIds, setRecentIds] = useState([])
   const [round, setRound] = useState(1)
@@ -38,6 +40,7 @@ export default function App() {
     setRound(1)
     setSeriesWins([0, 0])
     setPointResult(null)
+    setTieResult(null)
     setResult(null)
   }
 
@@ -70,12 +73,21 @@ export default function App() {
   }
 
   const handleGamePoint = (pointLoserIdx) => {
+    if (pointLoserIdx == null) {
+      setPointResult(null)
+      setResult(null)
+      setTieResult({ gameName: game.name })
+      setScreen("tie")
+      return
+    }
+
     const pointWinnerIdx = 1 - pointLoserIdx
     const nextSeries = [...seriesWins]
     nextSeries[pointWinnerIdx] += 1
 
     if (nextSeries[pointWinnerIdx] < SERIES_WIN) {
       setSeriesWins(nextSeries)
+      setTieResult(null)
       setPointResult({ pointWinnerIdx, pointLoserIdx, seriesWins: nextSeries, gameName: game.name, mode: matchMode })
       setScreen("point")
       return
@@ -86,6 +98,7 @@ export default function App() {
     if (matchMode === "single") {
       setSeriesWins(nextSeries)
       setPointResult(null)
+      setTieResult(null)
       setResult({ loserIdx: seriesLoserIdx, seriesWinnerIdx: pointWinnerIdx, gameName: game.name, mode: "single" })
       setScreen("result")
       return
@@ -96,6 +109,7 @@ export default function App() {
 
     setSeriesWins([0, 0])
     setPointResult(null)
+    setTieResult(null)
     setPlayers(nextPlayers)
     setResult({ loserIdx: seriesLoserIdx, newStrikes, seriesWinnerIdx: pointWinnerIdx, gameName: game.name, mode: "full" })
 
@@ -120,6 +134,11 @@ export default function App() {
     setScreen("intro")
   }
 
+  const handleReplayTie = () => {
+    setTieResult(null)
+    setScreen("intro")
+  }
+
   const handleNextRound = () => {
     if (matchMode === "single") {
       setGame(null)
@@ -139,6 +158,7 @@ export default function App() {
     setRound((currentRound) => currentRound + 1)
     setSeriesWins([0, 0])
     setPointResult(null)
+    setTieResult(null)
     setResult(null)
     setScreen("intro")
   }
@@ -148,6 +168,7 @@ export default function App() {
     setPlayers(freshPlayers())
     setResult(null)
     setPointResult(null)
+    setTieResult(null)
     setSeriesWins([0, 0])
     setRecentIds([])
     setRound(1)
@@ -155,7 +176,7 @@ export default function App() {
     setMatchMode("full")
   }
 
-  const showScoreboard = screen === "game" || screen === "point" || (matchMode === "full" && screen === "result")
+  const showScoreboard = screen === "game" || screen === "point" || screen === "tie" || (matchMode === "full" && screen === "result")
 
   return (
     <div className="app">
@@ -165,6 +186,7 @@ export default function App() {
       {screen === "intro" && game && <GameIntroScreen game={game} players={players} seriesWins={seriesWins} matchMode={matchMode} onGo={() => setScreen("game")} />}
       {screen === "game" && game && <GameRouter game={game} players={players} onResult={handleGamePoint} />}
       {screen === "point" && pointResult && <PointScreen players={players} pointResult={pointResult} onNextPoint={handleNextPoint} />}
+      {screen === "tie" && tieResult && <TieScreen gameName={tieResult.gameName} onReplay={handleReplayTie} />}
       {screen === "result" && result && <ResultScreen players={players} result={result} onNext={handleNextRound} />}
       {screen === "final" && <FinalScreen players={players} history={history} onRestart={handleRestart} />}
     </div>
