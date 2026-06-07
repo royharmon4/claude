@@ -4,6 +4,8 @@ import { TARGET_MS } from "../constants"
 import { chooseLoser } from "../utils/random"
 import { diffFromTarget, formatMs } from "../utils/time"
 
+const displayedMsDiff = (ms) => Math.round(Math.abs(ms - TARGET_MS))
+
 export default function TimeTarget({ players, onResult, mode }) {
   const [phase, setPhase] = useState("p0-ready")
   const [active, setActive] = useState(false)
@@ -42,7 +44,7 @@ export default function TimeTarget({ players, onResult, mode }) {
     if (phase === "done") {
       const [a, b] = elapsed
       if (a == null || b == null) return undefined
-      const id = window.setTimeout(() => onResult(chooseLoser(Math.abs(a - TARGET_MS), Math.abs(b - TARGET_MS), true)), 1100)
+      const id = window.setTimeout(() => onResult(chooseLoser(displayedMsDiff(a), displayedMsDiff(b), true)), 1100)
       return () => window.clearTimeout(id)
     }
     return undefined
@@ -83,7 +85,7 @@ function TimedResults({ players, elapsed }) {
         <div><span className="t-pink">{players[0].name}:</span> {formatMs(elapsed[0])} ({diffFromTarget(elapsed[0])})</div>
         <div><span className="t-cyan">{players[1].name}:</span> {formatMs(elapsed[1])} ({diffFromTarget(elapsed[1])})</div>
       </div>
-      <div style={{ color: "rgba(255,255,255,.5)", fontFamily: "Bangers,cursive", fontSize: 18 }}>Target: 5.000s</div>
+      <div style={{ color: "rgba(255,255,255,.5)", fontFamily: "Bangers,cursive", fontSize: 18 }}>Target: 5.000s · same difference replays</div>
     </div>
   )
 }
