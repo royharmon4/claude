@@ -2,29 +2,34 @@ import SeriesPips from "./SeriesPips"
 
 export default function GameIntroScreen({ game, players, seriesWins, matchMode = "full", onGo }) {
   const isSingleGame = matchMode === "single"
+  const pointsToWin = game?.pointsToWin || 2
+  const isOneRound = pointsToWin === 1
+  const format = isOneRound ? "one round" : "best 2 out of 3"
 
   return (
     <div className="screen" style={{ justifyContent: "center" }}>
       <div className="gi-emoji">{game.emoji}</div>
       <div className="gi-title bang glow-gold t-gold">{game.name}</div>
-      <div className="gi-type">{game.type === "sim" ? "⚔️ simultaneous" : "📱 pass & play"}</div>
+      <div className="gi-type">{game.type === "sim" ? "⚔️ simultaneous" : "📱 pass & play"} · {format}</div>
       <div className="card gi-rules">{game.rules}</div>
 
       <div className="card">
         <div className="series-card">
           <div>
             <div className="series-name t-pink">{players[0].name}</div>
-            <SeriesPips value={seriesWins[0]} colorClass="t-pink" />
+            <SeriesPips value={seriesWins[0]} colorClass="t-pink" pointsToWin={pointsToWin} />
           </div>
           <div>
             <div className="series-score">{seriesWins[0]}-{seriesWins[1]}</div>
             <div className="series-note">
-              {isSingleGame ? "First to 2 points wins this game" : "First to 2 points gives the other player a strike"}
+              {isOneRound
+                ? (isSingleGame ? "Winner takes this game" : "Winner gives the other player a strike")
+                : (isSingleGame ? "First to 2 points wins this game" : "First to 2 points gives the other player a strike")}
             </div>
           </div>
           <div>
             <div className="series-name t-cyan">{players[1].name}</div>
-            <SeriesPips value={seriesWins[1]} colorClass="t-cyan" />
+            <SeriesPips value={seriesWins[1]} colorClass="t-cyan" pointsToWin={pointsToWin} />
           </div>
         </div>
       </div>
@@ -37,7 +42,7 @@ export default function GameIntroScreen({ game, players, seriesWins, matchMode =
       )}
 
       <button className="btn btn-go" onClick={onGo} style={{ fontSize: 36 }}>
-        {seriesWins[0] + seriesWins[1] === 0 ? (isSingleGame ? "START BEST OF 3" : "START SERIES") : "NEXT POINT"} 🚀
+        {seriesWins[0] + seriesWins[1] === 0 ? (isOneRound ? "START ROUND" : isSingleGame ? "START BEST OF 3" : "START SERIES") : "NEXT POINT"} 🚀
       </button>
     </div>
   )
