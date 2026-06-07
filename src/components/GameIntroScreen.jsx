@@ -1,6 +1,8 @@
 import SeriesPips from "./SeriesPips"
 
-export default function GameIntroScreen({ game, players, seriesWins, onGo }) {
+export default function GameIntroScreen({ game, players, seriesWins, matchMode = "full", onGo }) {
+  const isSingleGame = matchMode === "single"
+
   return (
     <div className="screen" style={{ justifyContent: "center" }}>
       <div className="gi-emoji">{game.emoji}</div>
@@ -16,7 +18,9 @@ export default function GameIntroScreen({ game, players, seriesWins, onGo }) {
           </div>
           <div>
             <div className="series-score">{seriesWins[0]}-{seriesWins[1]}</div>
-            <div className="series-note">First to 2 points gives the other player a strike</div>
+            <div className="series-note">
+              {isSingleGame ? "First to 2 points wins this game" : "First to 2 points gives the other player a strike"}
+            </div>
           </div>
           <div>
             <div className="series-name t-cyan">{players[1].name}</div>
@@ -33,7 +37,7 @@ export default function GameIntroScreen({ game, players, seriesWins, onGo }) {
       )}
 
       <button className="btn btn-go" onClick={onGo} style={{ fontSize: 36 }}>
-        {seriesWins[0] + seriesWins[1] === 0 ? "START SERIES" : "NEXT POINT"} 🚀
+        {seriesWins[0] + seriesWins[1] === 0 ? (isSingleGame ? "START BEST OF 3" : "START SERIES") : "NEXT POINT"} 🚀
       </button>
     </div>
   )
