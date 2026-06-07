@@ -1,6 +1,6 @@
 import { useState } from "react"
 import "./app-next.css"
-import { HISTORY_LIMIT, LS_HIST, LS_NAMES, SERIES_WIN, STRIKES_WIN } from "./constants"
+import { HISTORY_LIMIT, LS_HIST, LS_NAMES, STRIKES_WIN } from "./constants"
 import { pickGame } from "./utils/random"
 import { readStorage, writeStorage } from "./utils/storage"
 import Scoreboard from "./components/Scoreboard"
@@ -22,6 +22,9 @@ const makePlayers = (p1, p2) => [
   { name: p1, strikes: 0 },
   { name: p2, strikes: 0 },
 ]
+
+const pointsToWin = (game) => game?.pointsToWin || 2
+const formatLabel = (game) => pointsToWin(game) === 1 ? "one round" : "best 2 out of 3"
 
 export default function App() {
   const [screen, setScreen] = useState("setup")
@@ -81,14 +84,15 @@ export default function App() {
       return
     }
 
+    const targetPoints = pointsToWin(game)
     const pointWinnerIdx = 1 - pointLoserIdx
     const nextSeries = [...seriesWins]
     nextSeries[pointWinnerIdx] += 1
 
-    if (nextSeries[pointWinnerIdx] < SERIES_WIN) {
+    if (nextSeries[pointWinnerIdx] < targetPoints) {
       setSeriesWins(nextSeries)
       setTieResult(null)
-      setPointResult({ pointWinnerIdx, pointLoserIdx, seriesWins: nextSeries, gameName: game.name, mode: matchMode })
+      setPointResult({ pointWinnerIdx, pointLoserIdx, seriesWins: nextSeries, gameName: game.name, mode: matchMode, pointsToWin: targetPoints, format: formatLabel(game) })
       setScreen("point")
       return
     }
@@ -99,7 +103,7 @@ export default function App() {
       setSeriesWins(nextSeries)
       setPointResult(null)
       setTieResult(null)
-      setResult({ loserIdx: seriesLoserIdx, seriesWinnerIdx: pointWinnerIdx, gameName: game.name, mode: "single" })
+      setResult({ loserIdx: seriesLoserIdx, seriesWinnerIdx: pointWinnerIdx, gameName: game.name, mode: "single", pointsToWin: targetPoints, format: formatLabel(game) })
       setScreen("result")
       return
     }
@@ -111,7 +115,7 @@ export default function App() {
     setPointResult(null)
     setTieResult(null)
     setPlayers(nextPlayers)
-    setResult({ loserIdx: seriesLoserIdx, newStrikes, seriesWinnerIdx: pointWinnerIdx, gameName: game.name, mode: "full" })
+    setResult({ loserIdx: seriesLoserIdx, newStrikes, seriesWinnerIdx: pointWinnerIdx, gameName: game.name, mode: "full", pointsToWin: targetPoints, format: formatLabel(game) })
 
     if (newStrikes >= STRIKES_WIN) {
       const entry = {
