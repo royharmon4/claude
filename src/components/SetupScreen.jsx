@@ -2,12 +2,23 @@ import { useMemo, useState } from "react"
 import { LS_NAMES } from "../constants"
 import { readStorage } from "../utils/storage"
 
-export default function SetupScreen({ history, onStart }) {
+export default function SetupScreen({ history, onStart, onChooseGame }) {
   const savedNames = useMemo(() => readStorage(LS_NAMES, []), [])
   const [names, setNames] = useState([savedNames[0] || "", savedNames[1] || ""])
 
-  const go = () => {
-    onStart(names[0].trim().slice(0, 16) || "Player 1", names[1].trim().slice(0, 16) || "Player 2")
+  const normalizedNames = () => [
+    names[0].trim().slice(0, 16) || "Player 1",
+    names[1].trim().slice(0, 16) || "Player 2",
+  ]
+
+  const startFullMatch = () => {
+    const [p1, p2] = normalizedNames()
+    onStart(p1, p2)
+  }
+
+  const chooseGame = () => {
+    const [p1, p2] = normalizedNames()
+    onChooseGame(p1, p2)
   }
 
   return (
@@ -33,7 +44,10 @@ export default function SetupScreen({ history, onStart }) {
         ))}
       </div>
 
-      <button className="btn btn-go" onClick={go} style={{ fontSize: 36 }}>LET'S GO! 🎮</button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <button className="btn btn-go" onClick={chooseGame} style={{ fontSize: 30 }}>PICK ONE GAME 🎯</button>
+        <button className="btn btn-cyan" onClick={startFullMatch} style={{ fontSize: 24 }}>RANDOM STRIKE MATCH 🎮</button>
+      </div>
 
       {history.length > 0 && (
         <div className="card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
