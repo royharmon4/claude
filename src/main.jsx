@@ -1,9 +1,9 @@
 import React from "react"
 import { createRoot } from "react-dom/client"
-import AppSeries from "./AppSeries.jsx"
+import AppNext from "./AppNext.jsx"
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AppSeries />
+    <AppNext />
   </React.StrictMode>
 )
