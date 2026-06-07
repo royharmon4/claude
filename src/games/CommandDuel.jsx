@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react"
+import { useLatest } from "../hooks/useLatest"
 import { useTimers } from "../hooks/useTimers"
+
+const FAKE_COMMANDS = ["DON'T TAP", "WAIT!", "NOT YET", "HOLD", "FREEZE", "NOPE"]
 
 function SplitZone({ idx, state, color, top, title, subtitle, name, onTap }) {
   const stateClass = state === "go" ? "zone-go" : state === "early" ? "zone-early" : state === "won" ? "zone-won" : state === "lost" ? "zone-lost" : "zone-wait"
@@ -14,12 +17,12 @@ function SplitZone({ idx, state, color, top, title, subtitle, name, onTap }) {
 }
 
 export default function CommandDuel({ players, onResult, fakeout = false }) {
-  const fakeCommands = ["DON'T TAP", "WAIT!", "NOT YET", "HOLD", "FREEZE", "NOPE"]
   const [command, setCommand] = useState({ text: fakeout ? "GET READY" : "WAIT...", kind: "wait" })
   const [zones, setZones] = useState(["wait", "wait"])
   const [step, setStep] = useState(0)
   const doneRef = useRef(false)
   const commandRef = useRef("wait")
+  const onResultRef = useLatest(onResult)
   const { addTimeout, clearAll } = useTimers()
 
   useEffect(() => {
@@ -31,7 +34,7 @@ export default function CommandDuel({ players, onResult, fakeout = false }) {
         addTimeout(() => {
           if (doneRef.current) return
           commandRef.current = "fake"
-          setCommand({ text: fakeCommands[Math.floor(Math.random() * fakeCommands.length)], kind: "fake" })
+          setCommand({ text: FAKE_COMMANDS[Math.floor(Math.random() * FAKE_COMMANDS.length)], kind: "fake" })
           setStep((value) => value + 1)
         }, delay)
         delay += 850 + Math.random() * 450
@@ -50,10 +53,10 @@ export default function CommandDuel({ players, onResult, fakeout = false }) {
         doneRef.current = true
         const loser = Math.random() < 0.5 ? 0 : 1
         setZones((old) => old.map((_, i) => (i === loser ? "lost" : "won")))
-        addTimeout(() => onResult(loser), 950)
+        addTimeout(() => onResultRef.current(loser), 950)
       }, fakeout ? 2600 : 4000)
     }, delay)
-  }, [])
+  }, [addTimeout, fakeout, onResultRef])
 
   const tap = (idx) => {
     if (doneRef.current) return
@@ -62,10 +65,10 @@ export default function CommandDuel({ players, onResult, fakeout = false }) {
     if (commandRef.current === "go") {
       const loser = 1 - idx
       setZones((old) => old.map((_, i) => (i === idx ? "won" : "lost")))
-      addTimeout(() => onResult(loser), 900)
+      addTimeout(() => onResultRef.current(loser), 900)
     } else {
       setZones((old) => old.map((_, i) => (i === idx ? "early" : "won")))
-      addTimeout(() => onResult(idx), 1100)
+      addTimeout(() => onResultRef.current(idx), 1100)
     }
   }
 
