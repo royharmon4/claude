@@ -1,0 +1,1080 @@
+import { useEffect, useMemo, useRef, useState } from "react"
+
+const STRIKES_WIN = 3
+const LS_NAMES = "strike-zone:names"
+const LS_HIST = "strike-zone:history"
+const TARGET_MS = 5000
+
+const GAMES = [
+  {
+    id: "tap-race",
+    name: "Tap Race",
+    emoji: "👊",
+    type: "sim",
+    rules: "Tap your half of the screen as fast as you can. Most taps when the timer runs out wins.",
+  },
+  {
+    id: "reaction-duel",
+    name: "Reaction Duel",
+    emoji: "⚡",
+    type: "sim",
+    rules: "Wait for green, then tap first. Tap early and you take the strike.",
+  },
+  {
+    id: "stop-the-bar",
+    name: "Stop the Bar",
+    emoji: "🎯",
+    type: "pnp",
+    rules: "Pass the phone. Each player freezes the moving bar. Closest to center wins.",
+  },
+  {
+    id: "color-trap",
+    name: "Color Trap",
+    emoji: "🚦",
+    type: "pnp",
+    rules: "Tap green tiles for +1. Red tiles cost -1. You have 8 seconds.",
+  },
+  {
+    id: "hold-release",
+    name: "Hold & Release",
+    emoji: "⏱️",
+    type: "pnp",
+    rules: "Hold the button, then release when you think exactly 5 seconds have passed.",
+  },
+  {
+    id: "memory-pattern",
+    name: "Memory Pattern",
+    emoji: "🧠",
+    type: "pnp",
+    rules: "Watch the sequence, then repeat it. Both players get the same pattern.",
+  },
+  {
+    id: "estimate-time",
+    name: "Estimate Time",
+    emoji: "⌚",
+    type: "pnp",
+    rules: "Tap start, then stop when you think exactly 5 seconds have passed.",
+  },
+]
+
+const MP_COLORS = ["r", "b", "g", "y"]
+const MP_LABELS = { r: "🔴", b: "🔵", g: "🟢", y: "🟡" }
+const CONFETTI_COLORS = ["#ff2d6e", "#00e5ff", "#ffd700", "#ff6600", "#cc00ff", "#00ff88"]
+
+function safeParse(value, fallback) {
+  try {
+    return value ? JSON.parse(value) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function readStorage(key, fallback) {
+  if (typeof window === "undefined") return fallback
+  return safeParse(window.localStorage.getItem(key), fallback)
+}
+
+function writeStorage(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Private browsing or storage denial should not break the game.
+  }
+}
+
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n))
+}
+
+function formatMs(ms) {
+  return `${(ms / 1000).toFixed(3)}s`
+}
+
+function diffFromTarget(ms) {
+  const seconds = (ms - TARGET_MS) / 1000
+  return `${seconds >= 0 ? "+" : ""}${seconds.toFixed(3)}s`
+}
+
+function chooseLoser(scoreA, scoreB, lowerIsBetter = false) {
+  if (scoreA === scoreB) return Math.random() < 0.5 ? 0 : 1
+  if (lowerIsBetter) return scoreA < scoreB ? 1 : 0
+  return scoreA > scoreB ? 1 : 0
+}
+
+function pickGame(recent = []) {
+  const excluded = new Set(recent.slice(-2))
+  const pool = GAMES.filter((game) => !excluded.has(game.id))
+  const choices = pool.length ? pool : GAMES
+  return choices[Math.floor(Math.random() * choices.length)]
+}
+
+function useTimeouts() {
+  const timers = useRef([])
+
+  const addTimeout = (fn, ms) => {
+    const id = window.setTimeout(fn, ms)
+    timers.current.push({ id, type: "timeout" })
+    return id
+  }
+
+  const addInterval = (fn, ms) => {
+    const id = window.setInterval(fn, ms)
+    timers.current.push({ id, type: "interval" })
+    return id
+  }
+
+  const clearAll = () => {
+    timers.current.forEach(({ id, type }) => {
+      if (type === "interval") window.clearInterval(id)
+      else window.clearTimeout(id)
+    })
+    timers.current = []
+  }
+
+  useEffect(() => clearAll, [])
+
+  return { addTimeout, addInterval, clearAll }
+}
+
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Bangers&family=Rajdhani:wght@600;700&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body,#root{height:100%;overflow:hidden;background:#08081a}
+body{position:fixed;inset:0;overscroll-behavior:none}
+button,input{font:inherit}
+button{touch-action:manipulation}
+
+.app{height:100dvh;background:radial-gradient(circle at top,#171744 0,#08081a 42%,#050511 100%);color:#fff;font-family:'Rajdhani',system-ui,sans-serif;font-weight:700;display:flex;flex-direction:column;overflow:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.bang{font-family:'Bangers',cursive;letter-spacing:2px;line-height:1.05}.t-pink{color:#ff2d6e}.t-cyan{color:#00e5ff}.t-gold{color:#ffd700}.glow-pink{text-shadow:0 0 12px #ff2d6e,0 0 34px rgba(255,45,110,.45)}.glow-cyan{text-shadow:0 0 12px #00e5ff,0 0 34px rgba(0,229,255,.45)}.glow-gold{text-shadow:0 0 12px #ffd700,0 0 34px rgba(255,215,0,.45)}
+.screen{flex:1;display:flex;flex-direction:column;gap:14px;padding:16px;overflow:auto;min-height:0}.card{background:rgba(18,18,44,.92);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:18px;box-shadow:0 18px 50px rgba(0,0,0,.24)}
+.btn{display:block;width:100%;min-height:58px;padding:14px 20px;border:0;border-radius:16px;font-family:'Bangers',cursive;font-size:28px;letter-spacing:2px;cursor:pointer;transition:transform .12s,filter .12s;box-shadow:0 12px 30px rgba(0,0,0,.22)}.btn:active{transform:scale(.94);filter:brightness(1.12)}.btn-go{background:linear-gradient(135deg,#ff2d6e,#ff5f00);color:#fff}.btn-cyan{background:linear-gradient(135deg,#00e5ff,#0062ff);color:#08081a}.btn-gold{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#08081a}.btn-ghost{background:transparent;border:2px solid rgba(255,255,255,.18);color:rgba(255,255,255,.65);box-shadow:none}
+.sb{display:flex;justify-content:space-between;align-items:center;background:rgba(9,9,29,.96);padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08);box-shadow:0 8px 26px rgba(0,0,0,.25);flex-shrink:0}.sb-player{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:112px}.sb-name{font-family:'Bangers',cursive;font-size:20px;letter-spacing:1px;max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sb-dots{display:flex;gap:6px}.dot{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;opacity:.55}.dot.on{background:currentColor;opacity:1;box-shadow:0 0 10px currentColor}.sb-mid{font-size:13px;color:rgba(255,255,255,.36);text-align:center;line-height:1.25}
+.setup-logo{font-family:'Bangers',cursive;font-size:62px;text-align:center;letter-spacing:4px}.setup-sub{text-align:center;font-size:15px;color:rgba(255,255,255,.48);letter-spacing:2px;text-transform:uppercase}.field{display:flex;flex-direction:column;gap:7px}.inp-label{font-family:'Bangers',cursive;font-size:19px;letter-spacing:1px;color:#00e5ff}.inp{background:#0d0d22;border:2px solid rgba(255,255,255,.16);border-radius:12px;color:#fff;font-size:22px;font-weight:700;padding:12px 16px;width:100%;outline:none;user-select:text;-webkit-user-select:text}.inp:focus{border-color:#00e5ff;box-shadow:0 0 0 3px rgba(0,229,255,.12)}
+.gi-emoji{font-size:82px;text-align:center;line-height:1;padding:6px 0}.gi-title{font-size:50px;text-align:center}.gi-type{font-size:13px;text-align:center;letter-spacing:3px;text-transform:uppercase;color:#00e5ff}.gi-rules{font-size:18px;color:rgba(255,255,255,.84);text-align:center;line-height:1.55}.pass-screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center}.pass-icon{font-size:58px}.pass-inst{font-size:26px;color:rgba(255,255,255,.55)}.pass-name{font-size:54px}.pass-prev{font-size:16px;color:rgba(255,255,255,.5);line-height:1.45}
+.cd-overlay{position:absolute;inset:0;background:rgba(8,8,26,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;text-align:center}.cd-num{font-family:'Bangers',cursive;font-size:160px;line-height:1;animation:pop .4s cubic-bezier(.34,1.56,.64,1)}
+.tr-outer,.rd-outer{flex:1;display:flex;flex-direction:column;position:relative;overflow:hidden}.tr-zone,.rd-zone{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;touch-action:none;cursor:pointer;position:relative}.tr-zone.p1,.rd-zone.p1{transform:rotate(180deg)}.tr-zone.p1{background:radial-gradient(ellipse,rgba(255,45,110,.15) 0%,transparent 70%)}.tr-zone.p2{background:radial-gradient(ellipse,rgba(0,229,255,.15) 0%,transparent 70%)}.tr-center{height:54px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.32);border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)}.tr-count{font-family:'Bangers',cursive;font-size:96px;line-height:1;letter-spacing:2px;pointer-events:none}.tr-pname{font-family:'Bangers',cursive;font-size:22px;letter-spacing:1px;pointer-events:none}.rd-div{height:2px;background:rgba(255,255,255,.1);flex-shrink:0}.rd-zone.wait{background:#16080e}.rd-zone.go{background:#0a2e10}.rd-zone.early{background:#330810}.rd-zone.won{background:#082436}.rd-zone.lost{background:#280808}.rd-text{font-family:'Bangers',cursive;font-size:44px;letter-spacing:2px;text-align:center;pointer-events:none}.rd-sub{font-size:16px;color:rgba(255,255,255,.62);pointer-events:none;text-align:center;letter-spacing:1px}
+.stb-outer,.hr-outer,.et-outer{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:20px;text-align:center}.stb-label,.hr-turn,.et-turn{font-family:'Bangers',cursive;font-size:30px;letter-spacing:1px}.stb-info,.hr-target,.et-target{font-size:15px;color:rgba(255,255,255,.48);letter-spacing:1px}.stb-wrap,.stb-scores{width:100%;max-width:360px}.stb-track{position:relative;height:60px;background:#12122c;border-radius:30px;overflow:hidden;border:2px solid rgba(255,255,255,.1);touch-action:none;cursor:pointer}.stb-tzone{position:absolute;top:0;bottom:0;left:calc(50% - 24px);width:48px;background:rgba(255,215,0,.16);z-index:1}.stb-tline{position:absolute;top:0;bottom:0;left:50%;width:3px;transform:translateX(-50%);background:#ffd700;z-index:2}.stb-bar{position:absolute;top:7px;bottom:7px;width:28px;transform:translateX(-50%);background:linear-gradient(180deg,#00e5ff,#0066ff);border-radius:14px;box-shadow:0 0 14px #00e5ff;z-index:3;will-change:left}.stb-scores{display:flex;justify-content:space-between;font-family:'Bangers',cursive;font-size:21px;gap:16px;text-align:left}.stb-scores div:last-child{text-align:right}
+.ct-outer,.mp-outer{flex:1;display:flex;flex-direction:column;gap:10px;padding:12px;min-height:0}.ct-header{display:flex;justify-content:space-between;align-items:center;gap:10px}.ct-score,.ct-time{font-family:'Bangers',cursive;font-size:36px}.ct-turn{font-family:'Bangers',cursive;font-size:18px;color:rgba(255,255,255,.5);text-align:center;min-width:90px}.ct-grid,.mp-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:10px;flex:1;min-height:0}.ct-cell{border-radius:18px;display:flex;align-items:center;justify-content:center;font-family:'Bangers',cursive;font-size:48px;touch-action:none;cursor:pointer;border:3px solid transparent;transition:transform .08s}.ct-cell:active{transform:scale(.9)}.ct-cell.green{background:#00aa33;border-color:#00ff44;box-shadow:0 0 18px rgba(0,170,51,.5)}.ct-cell.red{background:#aa0022;border-color:#ff0033;box-shadow:0 0 18px rgba(170,0,34,.5)}.ct-cell.neutral{background:#1a1a30;border-color:rgba(255,255,255,.07);color:rgba(255,255,255,.16)}
+.hr-btn,.et-btn{width:min(48vw,190px);height:min(48vw,190px);border-radius:50%;border:none;font-family:'Bangers',cursive;font-size:28px;letter-spacing:1px;cursor:pointer;touch-action:none;transition:transform .1s,box-shadow .1s,background .1s}.hr-btn.idle{background:#12122c;border:4px solid #00e5ff;color:#00e5ff;box-shadow:0 0 24px rgba(0,229,255,.22)}.hr-btn.holding{background:#00e5ff;color:#08081a;box-shadow:0 0 44px #00e5ff,0 0 80px rgba(0,229,255,.3);transform:scale(1.07)}.hr-result,.et-result{font-family:'Bangers',cursive;font-size:30px;text-align:center}.et-btn.start{background:#12122c;border:4px solid #ffd700;color:#ffd700;box-shadow:0 0 24px rgba(255,215,0,.22)}.et-btn.stop{background:#ffd700;color:#08081a;box-shadow:0 0 44px #ffd700;animation:pulse 1.1s ease infinite}.et-hint{font-family:'Bangers',cursive;font-size:22px;color:#ffd700;text-align:center}
+.mp-status{font-family:'Bangers',cursive;font-size:22px;text-align:center;min-height:28px;letter-spacing:1px}.mp-progress{font-size:14px;color:rgba(255,255,255,.48);text-align:center;letter-spacing:1px}.mp-cell{border-radius:18px;touch-action:none;cursor:pointer;transition:opacity .12s,filter .12s,transform .1s;opacity:.22}.mp-cell.on{opacity:1}.mp-cell.on:active{transform:scale(.92)}.mp-cell.lit{opacity:1;filter:brightness(2.85)}.mp-cell.r{background:#bb2244;box-shadow:inset 0 0 0 3px #ff4466}.mp-cell.b{background:#2244bb;box-shadow:inset 0 0 0 3px #4466ff}.mp-cell.g{background:#22aa44;box-shadow:inset 0 0 0 3px #44ff66}.mp-cell.y{background:#aaaa22;box-shadow:inset 0 0 0 3px #ffff44}
+.result-screen,.final-screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;position:relative;overflow:hidden}.rs-label{font-family:'Bangers',cursive;font-size:24px;letter-spacing:2px;color:rgba(255,255,255,.5)}.rs-name{font-family:'Bangers',cursive;font-size:52px;letter-spacing:2px;animation:pop .45s cubic-bezier(.34,1.56,.64,1)}.rs-strike{font-family:'Bangers',cursive;font-size:88px;letter-spacing:4px;color:#ff2d6e;text-shadow:0 0 20px #ff2d6e;animation:pop .45s .12s cubic-bezier(.34,1.56,.64,1) both}.rs-dots{display:flex;gap:10px}.rs-dot{width:26px;height:26px;border-radius:50%;border:3px solid #ff2d6e}.rs-dot.on{background:#ff2d6e;box-shadow:0 0 12px #ff2d6e}.rs-winner{font-size:16px;color:rgba(255,255,255,.48);letter-spacing:1px}.rs-elim{font-family:'Bangers',cursive;font-size:28px;letter-spacing:2px;color:#ff2d6e}.fs-crown{font-size:80px;animation:bounce .65s ease infinite alternate}.fs-wins{font-size:28px;color:#ffd700}.fs-winner{font-family:'Bangers',cursive;font-size:56px;letter-spacing:2px;animation:shimmer 2.5s linear infinite}.fs-hist{font-size:13px;color:rgba(255,255,255,.38);margin-top:4px}.confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden}.cp{position:absolute;top:-14px;border-radius:3px;animation:fall linear forwards}
+@keyframes pop{from{transform:scale(0) rotate(-8deg);opacity:0}to{transform:scale(1);opacity:1}}@keyframes bounce{from{transform:translateY(0)}to{transform:translateY(-14px)}}@keyframes shimmer{0%,100%{color:#ffd700;text-shadow:0 0 12px #ffd700}50%{color:#fff;text-shadow:0 0 12px #fff,0 0 35px #ffd700}}@keyframes fall{to{transform:translateY(110vh) rotate(520deg);opacity:0}}@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (max-height: 680px){.setup-logo{font-size:48px}.gi-emoji{font-size:60px}.gi-title{font-size:40px}.screen{gap:10px}.card{padding:14px}.rs-strike{font-size:70px}.fs-crown{font-size:62px}}
+`
+
+function StyleInjector() {
+  useEffect(() => {
+    const id = "strike-zone-css"
+    let el = document.getElementById(id)
+    if (!el) {
+      el = document.createElement("style")
+      el.id = id
+      document.head.appendChild(el)
+    }
+    el.textContent = CSS
+    return () => el.remove()
+  }, [])
+  return null
+}
+
+function Scoreboard({ players, round }) {
+  return (
+    <div className="sb" aria-label="Scoreboard">
+      <div className="sb-player">
+        <div className="sb-name t-pink">{players[0].name}</div>
+        <div className="sb-dots t-pink">
+          {Array.from({ length: STRIKES_WIN }, (_, i) => <div key={i} className={`dot${i < players[0].strikes ? " on" : ""}`} />)}
+        </div>
+      </div>
+      <div className="sb-mid bang">ROUND<br />{round}</div>
+      <div className="sb-player">
+        <div className="sb-name t-cyan">{players[1].name}</div>
+        <div className="sb-dots t-cyan">
+          {Array.from({ length: STRIKES_WIN }, (_, i) => <div key={i} className={`dot${i < players[1].strikes ? " on" : ""}`} />)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SetupScreen({ history, onStart }) {
+  const savedNames = useMemo(() => readStorage(LS_NAMES, []), [])
+  const [names, setNames] = useState([savedNames[0] || "", savedNames[1] || ""])
+
+  const go = () => {
+    const p1 = names[0].trim().slice(0, 16) || "Player 1"
+    const p2 = names[1].trim().slice(0, 16) || "Player 2"
+    onStart(p1, p2)
+  }
+
+  return (
+    <div className="screen" style={{ justifyContent: "center" }}>
+      <div>
+        <div className="setup-logo glow-pink t-pink">STRIKE</div>
+        <div className="setup-logo glow-cyan t-cyan" style={{ fontSize: 30 }}>ZONE</div>
+        <div className="setup-sub" style={{ marginTop: 6 }}>2 players · 1 phone · total chaos</div>
+      </div>
+
+      <div className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <label className="field">
+          <span className="inp-label">🔴 Player 1</span>
+          <input className="inp" placeholder="Enter name" value={names[0]} onChange={(e) => setNames([e.target.value, names[1]])} maxLength={16} />
+        </label>
+        <label className="field">
+          <span className="inp-label">🔵 Player 2</span>
+          <input className="inp" placeholder="Enter name" value={names[1]} onChange={(e) => setNames([names[0], e.target.value])} maxLength={16} />
+        </label>
+      </div>
+
+      <button className="btn btn-go" onClick={go} style={{ fontSize: 36 }}>LET'S GO! 🎮</button>
+
+      {history.length > 0 && (
+        <div className="card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div className="bang" style={{ fontSize: 16, color: "rgba(255,255,255,.45)", textAlign: "center" }}>RECENT MATCHES</div>
+          {history.slice(0, 3).map((h) => (
+            <div key={`${h.date}-${h.winner}-${h.loser}`} style={{ fontSize: 14, color: "rgba(255,255,255,.48)", textAlign: "center" }}>
+              🏆 {h.winner} beat {h.loser} · {h.date}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GameIntroScreen({ game, players, onGo }) {
+  return (
+    <div className="screen" style={{ justifyContent: "center" }}>
+      <div className="gi-emoji">{game.emoji}</div>
+      <div className="gi-title bang glow-gold t-gold">{game.name}</div>
+      <div className="gi-type">{game.type === "sim" ? "⚔️ simultaneous" : "📱 pass & play"}</div>
+      <div className="card gi-rules">{game.rules}</div>
+      {game.type === "sim" && (
+        <div className="card" style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 15, color: "rgba(255,255,255,.58)" }}>
+          <span>🔴 {players[0].name} → TOP</span>
+          <span>🔵 {players[1].name} → BOTTOM</span>
+        </div>
+      )}
+      <button className="btn btn-go" onClick={onGo} style={{ fontSize: 36 }}>GO! 🚀</button>
+    </div>
+  )
+}
+
+function PassTo({ name, color, info, onReady }) {
+  return (
+    <div className="pass-screen">
+      <div className="pass-icon">📱</div>
+      <div className="pass-inst bang">PASS THE PHONE TO</div>
+      <div className="pass-name bang" style={{ color }}>{name}</div>
+      {info && <div className="pass-prev">{info}</div>}
+      <button className="btn btn-cyan" style={{ marginTop: 8 }} onClick={onReady}>I'M READY!</button>
+    </div>
+  )
+}
+
+function GameRouter({ game, players, onResult }) {
+  const props = { players, onResult }
+  switch (game.id) {
+    case "tap-race": return <TapRace {...props} />
+    case "reaction-duel": return <ReactionDuel {...props} />
+    case "stop-the-bar": return <StopTheBar {...props} />
+    case "color-trap": return <ColorTrap {...props} />
+    case "hold-release": return <HoldRelease {...props} />
+    case "memory-pattern": return <MemoryPattern {...props} />
+    case "estimate-time": return <EstimateTime {...props} />
+    default: return null
+  }
+}
+
+function TapRace({ players, onResult }) {
+  const [countdown, setCountdown] = useState(3)
+  const [counts, setCounts] = useState([0, 0])
+  const [timeLeft, setTimeLeft] = useState(7)
+  const [done, setDone] = useState(false)
+  const countsRef = useRef([0, 0])
+  const doneRef = useRef(false)
+  const { addTimeout, addInterval } = useTimeouts()
+
+  useEffect(() => {
+    addTimeout(() => setCountdown(2), 900)
+    addTimeout(() => setCountdown(1), 1800)
+    addTimeout(() => setCountdown(0), 2700)
+    addTimeout(() => {
+      setCountdown(-1)
+      let remaining = 7
+      const intervalId = addInterval(() => {
+        remaining -= 1
+        setTimeLeft(remaining)
+        if (remaining <= 0 && !doneRef.current) {
+          window.clearInterval(intervalId)
+          doneRef.current = true
+          setDone(true)
+          const loser = chooseLoser(countsRef.current[0], countsRef.current[1])
+          addTimeout(() => onResult(loser), 1200)
+        }
+      }, 1000)
+    }, 3300)
+  }, [])
+
+  const tap = (idx) => {
+    if (countdown !== -1 || doneRef.current) return
+    const next = [...countsRef.current]
+    next[idx] += 1
+    countsRef.current = next
+    setCounts(next)
+  }
+
+  return (
+    <div className="tr-outer">
+      {countdown >= 0 && (
+        <div className="cd-overlay">
+          <div key={countdown} className="cd-num" style={{ color: countdown === 0 ? "#00e5ff" : countdown === 1 ? "#ff2d6e" : "#ffd700" }}>
+            {countdown === 0 ? "GO!" : countdown}
+          </div>
+        </div>
+      )}
+
+      <div className="tr-zone p1" onPointerDown={(e) => { e.preventDefault(); tap(0) }}>
+        <div className="tr-count t-pink">{counts[0]}</div>
+        <div className="tr-pname t-pink">{players[0].name}</div>
+      </div>
+      <div className="tr-center">
+        <div className="bang" style={{ fontSize: 26, color: timeLeft <= 3 ? "#ff2d6e" : "#fff" }}>
+          {countdown === -1 && !done ? `${timeLeft}s` : done ? "TIME!" : ""}
+        </div>
+      </div>
+      <div className="tr-zone p2" onPointerDown={(e) => { e.preventDefault(); tap(1) }}>
+        <div className="tr-count t-cyan">{counts[1]}</div>
+        <div className="tr-pname t-cyan">{players[1].name}</div>
+      </div>
+
+      {done && (
+        <div className="cd-overlay">
+          <div className="bang glow-gold t-gold" style={{ fontSize: 64 }}>TIME!</div>
+          <div className="bang" style={{ fontSize: 24, color: "rgba(255,255,255,.72)", marginTop: 8 }}>
+            {players[0].name} {counts[0]} vs {counts[1]} {players[1].name}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReactionDuel({ players, onResult }) {
+  const [zones, setZones] = useState(["wait", "wait"])
+  const doneRef = useRef(false)
+  const phaseRef = useRef("wait")
+  const { addTimeout, clearAll } = useTimeouts()
+
+  useEffect(() => {
+    addTimeout(() => {
+      if (doneRef.current) return
+      phaseRef.current = "go"
+      setZones(["go", "go"])
+      addTimeout(() => {
+        if (doneRef.current) return
+        doneRef.current = true
+        const loser = Math.random() < 0.5 ? 0 : 1
+        setZones((old) => old.map((_, i) => (i === loser ? "lost" : "won")))
+        addTimeout(() => onResult(loser), 950)
+      }, 4000)
+    }, 1500 + Math.random() * 2500)
+  }, [])
+
+  const handleTap = (idx) => {
+    if (doneRef.current) return
+    clearAll()
+    doneRef.current = true
+    if (phaseRef.current === "wait") {
+      setZones((old) => old.map((_, i) => (i === idx ? "early" : "won")))
+      addTimeout(() => onResult(idx), 1100)
+    } else {
+      const loser = 1 - idx
+      setZones((old) => old.map((_, i) => (i === idx ? "won" : "lost")))
+      addTimeout(() => onResult(loser), 950)
+    }
+  }
+
+  const status = (state) => {
+    if (state === "wait") return ["WAIT...", "Don't tap yet!"]
+    if (state === "go") return ["TAP NOW!", "GO GO GO!"]
+    if (state === "early") return ["TOO EARLY!", "False start 💀"]
+    if (state === "won") return ["YOU WIN!", "⚡ Fast reflexes!"]
+    return ["YOU LOSE!", "Too slow 😬"]
+  }
+
+  const textColor = (state) => {
+    if (state === "go") return "#00ff44"
+    if (state === "won") return "#00e5ff"
+    if (state === "early" || state === "lost") return "#ff4444"
+    return "rgba(255,255,255,.54)"
+  }
+
+  return (
+    <div className="rd-outer">
+      {[0, 1].map((idx) => {
+        const [main, sub] = status(zones[idx])
+        return (
+          <div
+            key={idx}
+            className={`rd-zone p${idx + 1} ${zones[idx]}`}
+            onPointerDown={(e) => { e.preventDefault(); handleTap(idx) }}
+          >
+            <div className="rd-text" style={{ color: textColor(zones[idx]) }}>{main}</div>
+            <div className="rd-sub">{sub}</div>
+            <div className="bang" style={{ fontSize: 18, color: "rgba(255,255,255,.42)" }}>{players[idx].name}</div>
+            {idx === 0 && <div className="rd-div" style={{ position: "absolute", bottom: 0, left: 0, right: 0 }} />}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function StopTheBar({ players, onResult }) {
+  const [phase, setPhase] = useState("p0-ready")
+  const [scores, setScores] = useState([null, null])
+  const barRef = useRef(null)
+  const centerRef = useRef(20)
+  const dirRef = useRef(1)
+  const rafRef = useRef(null)
+  const activeRef = useRef(false)
+  const lastTimeRef = useRef(null)
+
+  const stopBar = () => {
+    activeRef.current = false
+    if (rafRef.current) window.cancelAnimationFrame(rafRef.current)
+  }
+
+  const startBar = () => {
+    centerRef.current = 18 + Math.random() * 18
+    dirRef.current = 1
+    activeRef.current = true
+    lastTimeRef.current = null
+
+    const animate = (now) => {
+      if (!activeRef.current) return
+      if (lastTimeRef.current === null) lastTimeRef.current = now
+      const dt = Math.min((now - lastTimeRef.current) / 1000, 0.05)
+      lastTimeRef.current = now
+      centerRef.current += dirRef.current * 62 * dt
+      if (centerRef.current >= 96) { centerRef.current = 96; dirRef.current = -1 }
+      if (centerRef.current <= 4) { centerRef.current = 4; dirRef.current = 1 }
+      if (barRef.current) barRef.current.style.left = `${centerRef.current}%`
+      rafRef.current = window.requestAnimationFrame(animate)
+    }
+
+    rafRef.current = window.requestAnimationFrame(animate)
+  }
+
+  useEffect(() => () => stopBar(), [])
+
+  const startPhase = (next) => {
+    setPhase(next)
+    window.setTimeout(startBar, 80)
+  }
+
+  const handleTap = () => {
+    if (phase !== "p0-playing" && phase !== "p1-playing") return
+    stopBar()
+    const dist = Math.abs(centerRef.current - 50)
+
+    if (phase === "p0-playing") {
+      setScores([dist, null])
+      setPhase("handoff")
+    } else {
+      const s0 = scores[0]
+      setScores([s0, dist])
+      setPhase("done")
+      window.setTimeout(() => onResult(chooseLoser(s0, dist, true)), 1200)
+    }
+  }
+
+  const accuracy = (dist) => `${clamp(100 - dist * 2, 0, 100).toFixed(0)}% accuracy`
+
+  if (phase === "p0-ready") {
+    return (
+      <div className="stb-outer">
+        <div className="stb-label bang t-pink">{players[0].name}<br />YOU'RE UP FIRST</div>
+        <div className="stb-info">Stop the bar as close to the golden line as possible.</div>
+        <button className="btn btn-go" onClick={() => startPhase("p0-playing")}>START!</button>
+      </div>
+    )
+  }
+
+  if (phase === "handoff") {
+    return <PassTo name={players[1].name} color="#00e5ff" info={`${players[0].name}: ${accuracy(scores[0])} — can you beat it?`} onReady={() => startPhase("p1-playing")} />
+  }
+
+  if (phase === "done") {
+    return (
+      <div className="stb-outer">
+        <div className="stb-label bang t-gold">RESULTS!</div>
+        <div className="stb-scores">
+          <div><span className="t-pink">{players[0].name}</span><br />{accuracy(scores[0])}</div>
+          <div><span className="t-cyan">{players[1].name}</span><br />{accuracy(scores[1])}</div>
+        </div>
+        <div className="stb-info">Closest to center wins.</div>
+      </div>
+    )
+  }
+
+  const player = phase.startsWith("p0") ? 0 : 1
+
+  return (
+    <div className="stb-outer" onPointerDown={(e) => { e.preventDefault(); handleTap() }} style={{ touchAction: "none" }}>
+      <div className="stb-label bang" style={{ color: player === 0 ? "#ff2d6e" : "#00e5ff" }}>{players[player].name}<br />TAP TO STOP!</div>
+      <div className="stb-wrap">
+        <div className="stb-track">
+          <div className="stb-tzone" />
+          <div className="stb-tline" />
+          <div className="stb-bar" ref={barRef} style={{ left: `${centerRef.current}%` }} />
+        </div>
+      </div>
+      <div className="stb-info">🎯 Freeze the bar on the center line.</div>
+      {scores[0] !== null && <div className="stb-info" style={{ color: "#ffd700" }}>{players[0].name}: {accuracy(scores[0])}</div>}
+    </div>
+  )
+}
+
+function ColorTrap({ players, onResult }) {
+  const [phase, setPhase] = useState("p0-ready")
+  const [cells, setCells] = useState(["neutral", "neutral", "neutral", "neutral"])
+  const [timeLeft, setTimeLeft] = useState(8)
+  const [scoreDisplay, setScoreDisplay] = useState(0)
+  const [scores, setScores] = useState([null, null])
+  const cellsRef = useRef(cells)
+  const scoreRef = useRef(0)
+  const activeRef = useRef(false)
+  const { addInterval, clearAll, addTimeout } = useTimeouts()
+
+  const randomize = () => {
+    const values = ["green", "green", "red", "neutral"]
+    for (let i = values.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[values[i], values[j]] = [values[j], values[i]]
+    }
+    cellsRef.current = values
+    setCells(values)
+  }
+
+  const startTurn = (player) => {
+    clearAll()
+    activeRef.current = true
+    scoreRef.current = 0
+    setScoreDisplay(0)
+    setTimeLeft(8)
+    randomize()
+    addInterval(randomize, 700)
+
+    let remaining = 8
+    addInterval(() => {
+      remaining -= 1
+      setTimeLeft(remaining)
+      if (remaining <= 0) {
+        activeRef.current = false
+        clearAll()
+        const finalScore = scoreRef.current
+        setScores((prev) => {
+          const next = [...prev]
+          next[player] = finalScore
+          return next
+        })
+        setPhase(player === 0 ? "handoff" : "done")
+      }
+    }, 1000)
+  }
+
+  useEffect(() => {
+    if (phase !== "done") return undefined
+    const [s0, s1] = scores
+    if (s0 == null || s1 == null) return undefined
+    addTimeout(() => onResult(chooseLoser(s0, s1)), 1100)
+    return undefined
+  }, [phase, scores])
+
+  const handleCellTap = (idx) => {
+    if (!activeRef.current) return
+    const type = cellsRef.current[idx]
+    if (type === "neutral") return
+    scoreRef.current += type === "green" ? 1 : -1
+    const next = [...cellsRef.current]
+    next[idx] = "neutral"
+    cellsRef.current = next
+    setCells(next)
+    setScoreDisplay(scoreRef.current)
+  }
+
+  if (phase === "p0-ready") {
+    return <PassTo name={players[0].name} color="#ff2d6e" info="Tap GREEN = +1 · Tap RED = -1 · 8 seconds." onReady={() => { setPhase("p0-play"); startTurn(0) }} />
+  }
+
+  if (phase === "handoff") {
+    return <PassTo name={players[1].name} color="#00e5ff" info={`${players[0].name} scored ${scores[0]} — beat it.`} onReady={() => { setPhase("p1-play"); startTurn(1) }} />
+  }
+
+  if (phase === "done") {
+    return (
+      <div className="ct-outer" style={{ alignItems: "center", justifyContent: "center" }}>
+        <div className="bang t-gold glow-gold" style={{ fontSize: 48 }}>RESULTS!</div>
+        <div className="bang" style={{ fontSize: 28, display: "flex", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
+          <div className="t-pink">{players[0].name}: {scores[0]}</div>
+          <div className="t-cyan">{players[1].name}: {scores[1]}</div>
+        </div>
+        <div className="bang" style={{ fontSize: 20, color: "rgba(255,255,255,.45)" }}>Higher score wins.</div>
+      </div>
+    )
+  }
+
+  const player = phase.includes("p0") ? 0 : 1
+  const cellEmoji = (type) => type === "green" ? "✅" : type === "red" ? "❌" : "·"
+
+  return (
+    <div className="ct-outer">
+      <div className="ct-header">
+        <div className="ct-score" style={{ color: scoreDisplay >= 0 ? "#00ff44" : "#ff4444" }}>{scoreDisplay >= 0 ? "+" : ""}{scoreDisplay}</div>
+        <div className="ct-turn" style={{ color: player === 0 ? "#ff2d6e" : "#00e5ff" }}>{players[player].name}</div>
+        <div className="ct-time" style={{ color: timeLeft <= 3 ? "#ff2d6e" : "#fff" }}>{timeLeft}s</div>
+      </div>
+      <div className="ct-grid">
+        {cells.map((type, idx) => (
+          <div key={idx} className={`ct-cell ${type}`} onPointerDown={(e) => { e.preventDefault(); handleCellTap(idx) }}>{cellEmoji(type)}</div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function HoldRelease({ players, onResult }) {
+  const [phase, setPhase] = useState("p0-ready")
+  const [holding, setHolding] = useState(false)
+  const [elapsed, setElapsed] = useState([null, null])
+  const startTimeRef = useRef(null)
+
+  const playerFromPhase = () => (phase.includes("p0") ? 0 : 1)
+
+  const handleDown = () => {
+    if (!phase.endsWith("hold")) return
+    startTimeRef.current = performance.now()
+    setHolding(true)
+  }
+
+  const handleUp = () => {
+    if (!holding || startTimeRef.current == null) return
+    const player = playerFromPhase()
+    const ms = performance.now() - startTimeRef.current
+    startTimeRef.current = null
+    setHolding(false)
+    setElapsed((prev) => {
+      const next = [...prev]
+      next[player] = ms
+      return next
+    })
+    setPhase(player === 0 ? "p0-done" : "p1-done")
+  }
+
+  useEffect(() => {
+    if (phase === "p0-done") {
+      const id = window.setTimeout(() => setPhase("handoff"), 1400)
+      return () => window.clearTimeout(id)
+    }
+    if (phase === "p1-done") {
+      const id = window.setTimeout(() => setPhase("done"), 1400)
+      return () => window.clearTimeout(id)
+    }
+    if (phase === "done") {
+      const [e0, e1] = elapsed
+      if (e0 == null || e1 == null) return undefined
+      const d0 = Math.abs(e0 - TARGET_MS)
+      const d1 = Math.abs(e1 - TARGET_MS)
+      const id = window.setTimeout(() => onResult(chooseLoser(d0, d1, true)), 1100)
+      return () => window.clearTimeout(id)
+    }
+    return undefined
+  }, [phase, elapsed])
+
+  if (phase === "p0-ready") {
+    return <PassTo name={players[0].name} color="#ff2d6e" info="Hold the button. Release at exactly 5 seconds." onReady={() => setPhase("p0-hold")} />
+  }
+
+  if (phase === "handoff") {
+    return <PassTo name={players[1].name} color="#00e5ff" info={`${players[0].name}: ${formatMs(elapsed[0])} (${diffFromTarget(elapsed[0])}) — beat it.`} onReady={() => setPhase("p1-hold")} />
+  }
+
+  if (phase === "done") {
+    return <TimedResults className="hr-outer" players={players} elapsed={elapsed} />
+  }
+
+  const player = playerFromPhase()
+  const isDone = phase.endsWith("done")
+  const doneElapsed = elapsed[player]
+
+  return (
+    <div className="hr-outer">
+      <div className="hr-turn bang" style={{ color: player === 0 ? "#ff2d6e" : "#00e5ff" }}>{players[player].name}</div>
+      <div className="hr-target">🎯 Target: exactly 5.000 seconds</div>
+      <button
+        className={`hr-btn ${holding ? "holding" : "idle"}`}
+        onPointerDown={(e) => { e.preventDefault(); handleDown() }}
+        onPointerUp={handleUp}
+        onPointerCancel={handleUp}
+        onPointerLeave={handleUp}
+      >
+        {holding ? "HOLDING..." : isDone ? "✓" : "HOLD"}
+      </button>
+      {isDone && doneElapsed !== null && (
+        <div className="hr-result">{formatMs(doneElapsed)}<br /><span style={{ color: "rgba(255,255,255,.5)", fontSize: 18 }}>{diffFromTarget(doneElapsed)} from target</span></div>
+      )}
+    </div>
+  )
+}
+
+function MemoryPattern({ players, onResult }) {
+  const [sequence] = useState(() => Array.from({ length: 5 }, () => MP_COLORS[Math.floor(Math.random() * 4)]))
+  const [phase, setPhase] = useState("show-p0")
+  const [litCell, setLitCell] = useState(null)
+  const [inputProgress, setInputProgress] = useState([])
+  const [scores, setScores] = useState([null, null])
+  const [status, setStatus] = useState("")
+  const inputRef = useRef([])
+  const { addTimeout, clearAll } = useTimeouts()
+
+  useEffect(() => {
+    if (phase !== "show-p0" && phase !== "show-p1") return undefined
+    clearAll()
+    inputRef.current = []
+    setInputProgress([])
+    setLitCell(null)
+    const player = phase === "show-p0" ? 0 : 1
+    setStatus(`Watch the sequence, ${players[player].name}!`)
+
+    let delay = 550
+    sequence.forEach((color) => {
+      addTimeout(() => setLitCell(color), delay)
+      delay += 640
+      addTimeout(() => setLitCell(null), delay)
+      delay += 260
+    })
+    addTimeout(() => {
+      setStatus("Repeat the sequence!")
+      setPhase(phase === "show-p0" ? "input-p0" : "input-p1")
+    }, delay + 160)
+    return undefined
+  }, [phase])
+
+  const finishTurn = (player, score, message) => {
+    setStatus(message)
+    setScores((prev) => {
+      const next = [...prev]
+      next[player] = score
+      return next
+    })
+    inputRef.current = []
+    addTimeout(() => setPhase(player === 0 ? "handoff" : "done"), 800)
+  }
+
+  const handleCellTap = (color) => {
+    const isP0 = phase === "input-p0"
+    const isP1 = phase === "input-p1"
+    if (!isP0 && !isP1) return
+    const player = isP0 ? 0 : 1
+    const idx = inputRef.current.length
+    const nextInput = [...inputRef.current, color]
+    inputRef.current = nextInput
+    setInputProgress(nextInput)
+
+    if (color !== sequence[idx]) {
+      finishTurn(player, idx, `Wrong! ${idx}/${sequence.length} correct`)
+      return
+    }
+    if (nextInput.length === sequence.length) {
+      finishTurn(player, sequence.length, "PERFECT! 🎉")
+      return
+    }
+    setStatus(`${nextInput.length}/${sequence.length} ✓`)
+  }
+
+  useEffect(() => {
+    if (phase !== "done") return undefined
+    const [s0, s1] = scores
+    if (s0 == null || s1 == null) return undefined
+    addTimeout(() => onResult(chooseLoser(s0, s1)), 1300)
+    return undefined
+  }, [phase, scores])
+
+  if (phase === "handoff") {
+    return <PassTo name={players[1].name} color="#00e5ff" info={`${players[0].name} got ${scores[0]}/${sequence.length}. Same sequence.`} onReady={() => setPhase("show-p1")} />
+  }
+
+  if (phase === "done") {
+    return (
+      <div className="mp-outer" style={{ alignItems: "center", justifyContent: "center", gap: 16 }}>
+        <div className="bang t-gold glow-gold" style={{ fontSize: 40 }}>RESULTS!</div>
+        <div className="bang" style={{ fontSize: 24, display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center" }}>
+          <div className="t-pink">{players[0].name}: {scores[0]}/{sequence.length}</div>
+          <div className="t-cyan">{players[1].name}: {scores[1]}/{sequence.length}</div>
+        </div>
+        <div className="bang" style={{ color: "rgba(255,255,255,.5)", fontSize: 16 }}>Sequence: {sequence.map((c) => MP_LABELS[c]).join(" ")}</div>
+      </div>
+    )
+  }
+
+  const isInput = phase === "input-p0" || phase === "input-p1"
+  const player = phase.includes("p0") ? 0 : 1
+
+  return (
+    <div className="mp-outer">
+      <div className="mp-status" style={{ color: player === 0 ? "#ff2d6e" : "#00e5ff" }}>{status}</div>
+      {isInput && (
+        <div className="mp-progress">
+          {inputProgress.map((c) => MP_LABELS[c]).join(" ")} <span style={{ color: "rgba(255,255,255,.28)" }}>{"·".repeat(Math.max(0, sequence.length - inputProgress.length))}</span>
+        </div>
+      )}
+      <div className="mp-grid">
+        {MP_COLORS.map((color) => (
+          <div key={color} className={`mp-cell ${color}${isInput ? " on" : ""}${litCell === color ? " lit" : ""}`} onPointerDown={(e) => { e.preventDefault(); if (isInput) handleCellTap(color) }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function EstimateTime({ players, onResult }) {
+  const [phase, setPhase] = useState("p0-ready")
+  const [elapsed, setElapsed] = useState([null, null])
+  const [running, setRunning] = useState(false)
+  const startRef = useRef(null)
+
+  const playerFromPhase = () => (phase.startsWith("p0") ? 0 : 1)
+
+  const handleTap = () => {
+    const player = playerFromPhase()
+    if (!running) {
+      startRef.current = performance.now()
+      setRunning(true)
+      setPhase(`p${player}-run`)
+      return
+    }
+    const ms = performance.now() - startRef.current
+    startRef.current = null
+    setRunning(false)
+    setElapsed((prev) => {
+      const next = [...prev]
+      next[player] = ms
+      return next
+    })
+    setPhase(player === 0 ? "p0-done" : "p1-done")
+  }
+
+  useEffect(() => {
+    if (phase === "p0-done") {
+      const id = window.setTimeout(() => setPhase("handoff"), 1400)
+      return () => window.clearTimeout(id)
+    }
+    if (phase === "p1-done") {
+      const id = window.setTimeout(() => setPhase("done"), 1400)
+      return () => window.clearTimeout(id)
+    }
+    if (phase === "done") {
+      const [e0, e1] = elapsed
+      if (e0 == null || e1 == null) return undefined
+      const d0 = Math.abs(e0 - TARGET_MS)
+      const d1 = Math.abs(e1 - TARGET_MS)
+      const id = window.setTimeout(() => onResult(chooseLoser(d0, d1, true)), 1100)
+      return () => window.clearTimeout(id)
+    }
+    return undefined
+  }, [phase, elapsed])
+
+  if (phase === "p0-ready") {
+    return <PassTo name={players[0].name} color="#ff2d6e" info="Tap START, then STOP when you think 5 seconds passed." onReady={() => setPhase("p0-run")} />
+  }
+
+  if (phase === "handoff") {
+    return <PassTo name={players[1].name} color="#00e5ff" info={`${players[0].name}: ${formatMs(elapsed[0])} (${diffFromTarget(elapsed[0])}) — beat it.`} onReady={() => setPhase("p1-run")} />
+  }
+
+  if (phase === "done") {
+    return <TimedResults className="et-outer" players={players} elapsed={elapsed} />
+  }
+
+  const player = playerFromPhase()
+  const isDone = phase.endsWith("done")
+  const doneElapsed = elapsed[player]
+
+  return (
+    <div className="et-outer">
+      <div className="et-turn bang" style={{ color: player === 0 ? "#ff2d6e" : "#00e5ff" }}>{players[player].name}</div>
+      <div className="et-target">🎯 Stop as close to 5.000s as possible</div>
+      <button className={`et-btn ${running ? "stop" : "start"}`} onPointerDown={(e) => { e.preventDefault(); if (!isDone) handleTap() }}>
+        {isDone ? "✓" : running ? "STOP!" : "START"}
+      </button>
+      {running && <div className="et-hint">⏱️ Counting in your head...</div>}
+      {isDone && doneElapsed !== null && (
+        <div className="et-result">{formatMs(doneElapsed)}<br /><span style={{ color: "rgba(255,255,255,.5)", fontSize: 18 }}>{diffFromTarget(doneElapsed)} from target</span></div>
+      )}
+    </div>
+  )
+}
+
+function TimedResults({ className, players, elapsed }) {
+  return (
+    <div className={className}>
+      <div className="bang t-gold glow-gold" style={{ fontSize: 40 }}>RESULTS!</div>
+      <div className="bang" style={{ fontSize: 22, display: "flex", flexDirection: "column", gap: 10, textAlign: "center" }}>
+        <div><span className="t-pink">{players[0].name}:</span> {formatMs(elapsed[0])} ({diffFromTarget(elapsed[0])})</div>
+        <div><span className="t-cyan">{players[1].name}:</span> {formatMs(elapsed[1])} ({diffFromTarget(elapsed[1])})</div>
+      </div>
+      <div style={{ color: "rgba(255,255,255,.5)", fontFamily: "Bangers,cursive", fontSize: 18 }}>Target: 5.000s</div>
+    </div>
+  )
+}
+
+function ResultScreen({ players, result, onNext }) {
+  const { loserIdx, newStrikes } = result
+  const winnerIdx = 1 - loserIdx
+  const eliminated = newStrikes >= STRIKES_WIN
+
+  return (
+    <div className="result-screen">
+      {eliminated ? (
+        <>
+          <div className="rs-label">GAME OVER!</div>
+          <div className="rs-name t-pink glow-pink">{players[loserIdx].name}</div>
+          <div className="rs-elim">ELIMINATED! ☠️</div>
+          <div className="rs-dots">{Array.from({ length: STRIKES_WIN }, (_, i) => <div key={i} className="rs-dot on" />)}</div>
+          <div className="rs-winner">🏆 {players[winnerIdx].name} wins the match!</div>
+          <button className="btn btn-gold" onClick={onNext} style={{ marginTop: 12 }}>SEE THE WINNER! 🎉</button>
+        </>
+      ) : (
+        <>
+          <div className="rs-label">THAT'S A</div>
+          <div className="rs-strike">STRIKE!</div>
+          <div className="rs-name t-pink">{players[loserIdx].name}</div>
+          <div className="rs-dots">{Array.from({ length: STRIKES_WIN }, (_, i) => <div key={i} className={`rs-dot${i < newStrikes ? " on" : ""}`} />)}</div>
+          <div className="rs-winner" style={{ marginTop: 4 }}>{newStrikes === STRIKES_WIN - 1 ? "⚠️ One more and they're out!" : `${players[winnerIdx].name} takes the point`}</div>
+          <button className="btn btn-cyan" onClick={onNext} style={{ marginTop: 12 }}>NEXT ROUND →</button>
+        </>
+      )}
+    </div>
+  )
+}
+
+function FinalScreen({ players, history, onRestart }) {
+  const winner = players.find((p) => p.strikes < STRIKES_WIN)
+  const loser = players.find((p) => p.strikes >= STRIKES_WIN)
+  const confetti = useMemo(() => Array.from({ length: 64 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    dur: 2.2 + Math.random() * 2.8,
+    delay: Math.random() * 2.5,
+    color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    w: 7 + Math.random() * 9,
+    h: 7 + Math.random() * 9,
+    rot: Math.random() * 360,
+  })), [])
+
+  return (
+    <div className="final-screen">
+      <div className="confetti">
+        {confetti.map((p) => <div key={p.id} className="cp" style={{ left: `${p.left}%`, background: p.color, width: `${p.w}px`, height: `${p.h}px`, transform: `rotate(${p.rot}deg)`, animationDuration: `${p.dur}s`, animationDelay: `${p.delay}s` }} />)}
+      </div>
+      <div className="fs-crown">👑</div>
+      <div className="fs-wins bang">CHAMPION!</div>
+      <div className="fs-winner glow-gold t-gold">{winner?.name}</div>
+      <div style={{ fontSize: 16, color: "rgba(255,255,255,.48)", letterSpacing: 1 }}>{loser?.name} got 3 strikes and is out.</div>
+
+      {history.length > 0 && (
+        <div className="card" style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", maxWidth: 320, marginTop: 8 }}>
+          <div className="bang" style={{ fontSize: 16, color: "rgba(255,255,255,.45)", textAlign: "center" }}>MATCH HISTORY</div>
+          {history.slice(0, 4).map((h) => <div key={`${h.date}-${h.winner}-${h.loser}`} className="fs-hist">🏆 {h.winner} beat {h.loser} · {h.date}</div>)}
+        </div>
+      )}
+
+      <button className="btn btn-go" onClick={onRestart} style={{ marginTop: 12, fontSize: 26 }}>PLAY AGAIN! 🎮</button>
+    </div>
+  )
+}
+
+export default function App() {
+  const [screen, setScreen] = useState("setup")
+  const [players, setPlayers] = useState([{ name: "Player 1", strikes: 0 }, { name: "Player 2", strikes: 0 }])
+  const [game, setGame] = useState(null)
+  const [result, setResult] = useState(null)
+  const [recentIds, setRecentIds] = useState([])
+  const [round, setRound] = useState(1)
+  const [history, setHistory] = useState(() => readStorage(LS_HIST, []))
+
+  const startMatch = (p1, p2) => {
+    writeStorage(LS_NAMES, [p1, p2])
+    const nextGame = pickGame([])
+    setPlayers([{ name: p1, strikes: 0 }, { name: p2, strikes: 0 }])
+    setRound(1)
+    setRecentIds([nextGame.id])
+    setGame(nextGame)
+    setResult(null)
+    setScreen("intro")
+  }
+
+  const handleResult = (loserIdx) => {
+    setPlayers((currentPlayers) => {
+      const newStrikes = currentPlayers[loserIdx].strikes + 1
+      const nextPlayers = currentPlayers.map((player, idx) => idx === loserIdx ? { ...player, strikes: newStrikes } : player)
+      setResult({ loserIdx, newStrikes })
+
+      if (newStrikes >= STRIKES_WIN) {
+        const winnerIdx = 1 - loserIdx
+        const entry = {
+          winner: nextPlayers[winnerIdx].name,
+          loser: nextPlayers[loserIdx].name,
+          date: new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+        }
+        setHistory((prev) => {
+          const nextHistory = [entry, ...prev].slice(0, 10)
+          writeStorage(LS_HIST, nextHistory)
+          return nextHistory
+        })
+      }
+
+      return nextPlayers
+    })
+    setScreen("result")
+  }
+
+  const handleNext = () => {
+    if (result?.newStrikes >= STRIKES_WIN) {
+      setScreen("final")
+      return
+    }
+    const nextGame = pickGame(recentIds)
+    setRecentIds((prev) => [...prev, nextGame.id].slice(-6))
+    setGame(nextGame)
+    setRound((currentRound) => currentRound + 1)
+    setResult(null)
+    setScreen("intro")
+  }
+
+  const handleRestart = () => {
+    setScreen("setup")
+    setPlayers([{ name: "Player 1", strikes: 0 }, { name: "Player 2", strikes: 0 }])
+    setResult(null)
+    setRecentIds([])
+    setRound(1)
+    setGame(null)
+  }
+
+  const showScoreboard = screen === "game" || screen === "result"
+
+  return (
+    <div className="app">
+      <StyleInjector />
+      {showScoreboard && <Scoreboard players={players} round={round} />}
+      {screen === "setup" && <SetupScreen history={history} onStart={startMatch} />}
+      {screen === "intro" && game && <GameIntroScreen game={game} players={players} onGo={() => setScreen("game")} />}
+      {screen === "game" && game && <GameRouter game={game} players={players} onResult={handleResult} />}
+      {screen === "result" && result && <ResultScreen players={players} result={result} onNext={handleNext} />}
+      {screen === "final" && <FinalScreen players={players} history={history} onRestart={handleRestart} />}
+    </div>
+  )
+}
