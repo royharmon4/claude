@@ -31,7 +31,14 @@ export default function SneakyMemory({ players, onResult }) {
   useEffect(() => {
     if (phase !== "done" || !scores[0] || !scores[1]) return
     const [a, b] = scores
-    const loser = a.correct !== b.correct ? (a.correct ? 1 : 0) : a.correct ? chooseLoser(a.time, b.time, true) : (Math.random() < 0.5 ? 0 : 1)
+    let loser = null
+
+    if (a.correct !== b.correct) {
+      loser = a.correct ? 1 : 0
+    } else if (a.correct && b.correct) {
+      loser = chooseLoser(a.time, b.time, true)
+    }
+
     addTimeout(() => onResult(loser), 1500)
   }, [phase, scores])
 
