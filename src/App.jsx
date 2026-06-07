@@ -76,7 +76,7 @@ export default function App() {
 
     if (nextSeries[pointWinnerIdx] < SERIES_WIN) {
       setSeriesWins(nextSeries)
-      setPointResult({ pointWinnerIdx, pointLoserIdx, seriesWins: nextSeries, gameName: game.name })
+      setPointResult({ pointWinnerIdx, pointLoserIdx, seriesWins: nextSeries, gameName: game.name, mode: matchMode })
       setScreen("point")
       return
     }
@@ -162,7 +162,7 @@ export default function App() {
       {showScoreboard && <Scoreboard players={players} round={round} seriesWins={seriesWins} game={game} matchMode={matchMode} />}
       {screen === "setup" && <SetupScreen history={history} onStart={startMatch} onChooseGame={openGameGallery} />}
       {screen === "select-game" && <GameSelectScreen players={players} onSelect={startSingleGame} onBack={handleRestart} />}
-      {screen === "intro" && game && <GameIntroScreen game={game} players={players} seriesWins={seriesWins} onGo={() => setScreen("game")} />}
+      {screen === "intro" && game && <GameIntroScreen game={game} players={players} seriesWins={seriesWins} matchMode={matchMode} onGo={() => setScreen("game")} />}
       {screen === "game" && game && <GameRouter game={game} players={players} onResult={handleGamePoint} />}
       {screen === "point" && pointResult && <PointScreen players={players} pointResult={pointResult} onNextPoint={handleNextPoint} />}
       {screen === "result" && result && <ResultScreen players={players} result={result} onNext={handleNextRound} />}
