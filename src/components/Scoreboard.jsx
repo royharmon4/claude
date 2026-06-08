@@ -3,6 +3,8 @@ import SeriesPips from "./SeriesPips"
 
 export default function Scoreboard({ players, round, seriesWins, game, matchMode = "full" }) {
   const isSingleGame = matchMode === "single"
+  const pointsToWin = game?.pointsToWin || 2
+  const isOneRound = pointsToWin === 1
 
   return (
     <div className="sb">
@@ -16,11 +18,11 @@ export default function Scoreboard({ players, round, seriesWins, game, matchMode
               ))}
             </div>
           )}
-          {game && <SeriesPips value={seriesWins[idx]} colorClass={idx === 0 ? "t-pink" : "t-cyan"} />}
+          {game && <SeriesPips value={seriesWins[idx]} colorClass={idx === 0 ? "t-pink" : "t-cyan"} pointsToWin={pointsToWin} />}
         </div>
       ))}
       <div className="sb-mid bang" style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
-        {isSingleGame ? "BEST" : "ROUND"}<br />{isSingleGame ? "OF 3" : round}<br />{game ? `${seriesWins[0]}-${seriesWins[1]}` : ""}
+        {isSingleGame ? (isOneRound ? "ONE" : "BEST") : "ROUND"}<br />{isSingleGame ? (isOneRound ? "ROUND" : "OF 3") : round}<br />{game ? `${seriesWins[0]}-${seriesWins[1]}` : ""}
       </div>
     </div>
   )
