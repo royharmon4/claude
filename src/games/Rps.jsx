@@ -3,9 +3,9 @@ import PassTo from "../components/PassTo"
 import { useTimers } from "../hooks/useTimers"
 
 const MOVES = [
-  { id: "a", label: "A", icon: "✊", beats: "c" },
-  { id: "b", label: "B", icon: "✋", beats: "a" },
-  { id: "c", label: "C", icon: "✌️", beats: "b" },
+  { id: "a", name: "Rock", icon: "✊", beats: "c" },
+  { id: "b", name: "Paper", icon: "✋", beats: "a" },
+  { id: "c", name: "Scissors", icon: "✌️", beats: "b" },
 ]
 
 export default function Rps({ players, onResult }) {
@@ -46,9 +46,9 @@ export default function Rps({ players, onResult }) {
   if (phase === "handoff") return <PassTo name={players[1].name} color="#00e5ff" info="Player 1 picked. Choose your move without looking back." onReady={() => setPhase("p1")} />
 
   if (phase === "reveal" || phase === "tie") {
-    return <div className="mini-outer"><div className="bang t-gold" style={{ fontSize: 34 }}>{message}</div><div className="reveal-row">{[0, 1].map((idx) => <div key={idx} className="reveal-card"><div className="emoji">{choices[idx]?.icon ?? "❔"}</div><div className={`name ${idx === 0 ? "t-pink" : "t-cyan"}`}>{players[idx].name}</div><div className="command-sub">Move {choices[idx]?.label ?? "?"}</div></div>)}</div></div>
+    return <div className="mini-outer"><div className="bang t-gold" style={{ fontSize: 34 }}>{message}</div><div className="reveal-row">{[0, 1].map((idx) => <div key={idx} className="reveal-card"><div className="emoji" aria-label={choices[idx]?.name}>{choices[idx]?.icon ?? "❔"}</div><div className={`name ${idx === 0 ? "t-pink" : "t-cyan"}`}>{players[idx].name}</div></div>)}</div></div>
   }
 
   const player = phase === "p0" ? 0 : 1
-  return <div className="mini-outer"><div className="bang" style={{ fontSize: 34, color: player === 0 ? "#ff2d6e" : "#00e5ff" }}>{players[player].name}</div><div className="command-sub">{message}</div><div className="choice-grid">{MOVES.map((choice) => <button key={choice.id} className="choice-btn" onClick={() => pick(player, choice)}><span className="choice-emoji">{choice.icon}</span><span>Move {choice.label}</span></button>)}</div></div>
+  return <div className="mini-outer"><div className="bang" style={{ fontSize: 34, color: player === 0 ? "#ff2d6e" : "#00e5ff" }}>{players[player].name}</div><div className="command-sub">{message}</div><div className="choice-grid">{MOVES.map((choice) => <button key={choice.id} className="choice-btn" aria-label={choice.name} title={choice.name} onClick={() => pick(player, choice)}><span className="choice-emoji" aria-hidden="true">{choice.icon}</span></button>)}</div></div>
 }
