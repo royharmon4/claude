@@ -26,7 +26,7 @@ export default function SetupScreen({ history, onStart, onChooseGame }) {
       <div>
         <div className="setup-logo glow-pink t-pink">STRIKE</div>
         <div className="setup-logo glow-cyan t-cyan" style={{ fontSize: 30 }}>ZONE</div>
-        <div className="setup-sub" style={{ marginTop: 6 }}>2 players · 1 phone · best 2 of 3</div>
+        <div className="setup-sub" style={{ marginTop: 6 }}>2 players · 1 phone · quick mini games</div>
       </div>
 
       <div className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
