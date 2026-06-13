@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useLatest } from "../hooks/useLatest"
 import { useTimers } from "../hooks/useTimers"
+import { sfx, buzz } from "../utils/sound"
 
 const FAKE_COMMANDS = ["DON'T TAP", "WAIT!", "NOT YET", "HOLD", "FREEZE", "NOPE"]
 
@@ -20,8 +21,10 @@ export default function CommandDuel({ players, onResult, fakeout = false }) {
   const [command, setCommand] = useState({ text: fakeout ? "GET READY" : "WAIT...", kind: "wait" })
   const [zones, setZones] = useState(["wait", "wait"])
   const [step, setStep] = useState(0)
+  const [reactionMs, setReactionMs] = useState(null)
   const doneRef = useRef(false)
   const commandRef = useRef("wait")
+  const goAtRef = useRef(null)
   const onResultRef = useLatest(onResult)
   const { addTimeout, clearAll } = useTimers()
 
@@ -34,6 +37,7 @@ export default function CommandDuel({ players, onResult, fakeout = false }) {
         addTimeout(() => {
           if (doneRef.current) return
           commandRef.current = "fake"
+          sfx.tick()
           setCommand({ text: FAKE_COMMANDS[Math.floor(Math.random() * FAKE_COMMANDS.length)], kind: "fake" })
           setStep((value) => value + 1)
         }, delay)
@@ -46,6 +50,8 @@ export default function CommandDuel({ players, onResult, fakeout = false }) {
     addTimeout(() => {
       if (doneRef.current) return
       commandRef.current = "go"
+      goAtRef.current = performance.now()
+      sfx.go()
       setCommand({ text: "TAP NOW!", kind: "go" })
       setZones(["go", "go"])
       addTimeout(() => {
@@ -61,19 +67,23 @@ export default function CommandDuel({ players, onResult, fakeout = false }) {
     if (doneRef.current) return
     clearAll()
     doneRef.current = true
+    buzz(20)
     if (commandRef.current === "go") {
       const loser = 1 - idx
+      if (goAtRef.current != null) setReactionMs(Math.round(performance.now() - goAtRef.current))
+      sfx.good()
       setZones((old) => old.map((_, i) => (i === idx ? "won" : "lost")))
-      addTimeout(() => onResultRef.current(loser), 900)
+      addTimeout(() => onResultRef.current(loser), 1300)
     } else {
+      sfx.bad()
       setZones((old) => old.map((_, i) => (i === idx ? "early" : "won")))
       addTimeout(() => onResultRef.current(idx), 1100)
     }
   }
 
   const status = (idx) => {
-    if (zones[idx] === "won") return ["YOU WIN!", ""]
-    if (zones[idx] === "lost") return ["YOU LOSE!", ""]
+    if (zones[idx] === "won") return ["YOU WIN!", reactionMs != null ? `${reactionMs}ms reaction!` : ""]
+    if (zones[idx] === "lost") return ["YOU LOSE!", reactionMs != null ? `Opponent: ${reactionMs}ms` : ""]
     if (zones[idx] === "tie") return ["NO TAP!", "Replay point"]
     if (zones[idx] === "early") return [fakeout ? "FAKEOUT!" : "TOO EARLY!", "Tapped too soon"]
     if (fakeout) return [players[idx].name, ""]
