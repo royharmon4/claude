@@ -3,6 +3,7 @@ import PassTo from "../components/PassTo"
 import { TARGET_MS } from "../constants"
 import { chooseLoser } from "../utils/random"
 import { diffFromTarget, formatMs } from "../utils/time"
+import { sfx, buzz } from "../utils/sound"
 
 const displayedMsDiff = (ms) => Math.round(Math.abs(ms - TARGET_MS))
 
@@ -16,6 +17,8 @@ export default function TimeTarget({ players, onResult, mode }) {
   const start = () => {
     startRef.current = performance.now()
     setActive(true)
+    sfx.tick()
+    buzz(15)
     setPhase(`p${player}-${mode === "hold" ? "hold" : "run"}`)
   }
 
@@ -24,6 +27,9 @@ export default function TimeTarget({ players, onResult, mode }) {
     const ms = performance.now() - startRef.current
     setActive(false)
     startRef.current = null
+    buzz(15)
+    if (displayedMsDiff(ms) <= 150) sfx.good()
+    else sfx.tick()
     setElapsed((prev) => {
       const next = [...prev]
       next[player] = ms
@@ -44,7 +50,7 @@ export default function TimeTarget({ players, onResult, mode }) {
     if (phase === "done") {
       const [a, b] = elapsed
       if (a == null || b == null) return undefined
-      const id = window.setTimeout(() => onResult(chooseLoser(displayedMsDiff(a), displayedMsDiff(b), true)), 1100)
+      const id = window.setTimeout(() => onResult(chooseLoser(displayedMsDiff(a), displayedMsDiff(b), true)), 1500)
       return () => window.clearTimeout(id)
     }
     return undefined
@@ -64,10 +70,18 @@ export default function TimeTarget({ players, onResult, mode }) {
       <div className="command-sub">🎯 Target: exactly 5.000 seconds</div>
       <button
         className={`circle-btn ${buttonClass}`}
-        onPointerDown={(e) => { e.preventDefault(); if (done) return; if (mode === "hold") start(); else active ? stop() : start() }}
+        onPointerDown={(e) => {
+          e.preventDefault()
+          if (done) return
+          // Capture the pointer so a sliding finger doesn't end the hold early.
+          if (mode === "hold" && e.currentTarget.setPointerCapture) {
+            try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* unsupported */ }
+          }
+          if (mode === "hold") start()
+          else active ? stop() : start()
+        }}
         onPointerUp={mode === "hold" ? stop : undefined}
         onPointerCancel={mode === "hold" ? stop : undefined}
-        onPointerLeave={mode === "hold" ? stop : undefined}
       >
         {done ? "✓" : active ? (mode === "tap" ? "STOP!" : "HOLDING...") : (mode === "tap" ? "START" : "HOLD")}
       </button>
@@ -78,14 +92,19 @@ export default function TimeTarget({ players, onResult, mode }) {
 }
 
 function TimedResults({ players, elapsed }) {
+  const d0 = displayedMsDiff(elapsed[0])
+  const d1 = displayedMsDiff(elapsed[1])
+  const winnerIdx = d0 === d1 ? null : d0 < d1 ? 0 : 1
   return (
     <div className="mini-outer">
       <div className="bang t-gold glow-gold" style={{ fontSize: 40 }}>RESULTS!</div>
       <div className="bang" style={{ fontSize: 22, display: "flex", flexDirection: "column", gap: 10, textAlign: "center" }}>
-        <div><span className="t-pink">{players[0].name}:</span> {formatMs(elapsed[0])} ({diffFromTarget(elapsed[0])})</div>
-        <div><span className="t-cyan">{players[1].name}:</span> {formatMs(elapsed[1])} ({diffFromTarget(elapsed[1])})</div>
+        <div><span className="t-pink">{players[0].name}:</span> {formatMs(elapsed[0])} ({diffFromTarget(elapsed[0])}){winnerIdx === 0 ? " 🏆" : ""}</div>
+        <div><span className="t-cyan">{players[1].name}:</span> {formatMs(elapsed[1])} ({diffFromTarget(elapsed[1])}){winnerIdx === 1 ? " 🏆" : ""}</div>
       </div>
-      <div style={{ color: "rgba(255,255,255,.5)", fontFamily: "Bangers,cursive", fontSize: 18 }}>Target: 5.000s · same difference replays</div>
+      <div style={{ color: "rgba(255,255,255,.5)", fontFamily: "Bangers,cursive", fontSize: 18 }}>
+        {winnerIdx == null ? "Same difference — replay!" : `${players[winnerIdx].name} was closest to 5.000s.`}
+      </div>
     </div>
   )
 }

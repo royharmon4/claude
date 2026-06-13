@@ -1,6 +1,6 @@
 import { GAME_COMPONENTS } from "../games"
 
-export default function GameRouter({ game, players, onResult }) {
+export default function GameRouter({ game, players, onResult, pointIndex = 0 }) {
   const GameComponent = GAME_COMPONENTS[game?.id]
 
   if (!GameComponent) {
@@ -13,5 +13,5 @@ export default function GameRouter({ game, players, onResult }) {
     )
   }
 
-  return <GameComponent players={players} onResult={onResult} />
+  return <GameComponent players={players} onResult={onResult} pointIndex={pointIndex} />
 }

@@ -10,7 +10,8 @@ export function shuffle(list) {
 }
 
 export function pickGame(recent = []) {
-  const excluded = new Set(recent.slice(-2))
+  // Avoid repeating any of the last 4 games so matches feel varied.
+  const excluded = new Set(recent.slice(-4))
   const pool = GAMES.filter((game) => !excluded.has(game.id))
   const choices = pool.length ? pool : GAMES
   return choices[Math.floor(Math.random() * choices.length)]

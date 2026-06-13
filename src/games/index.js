@@ -10,6 +10,8 @@ import ColorTrap from "./ColorTrap"
 import HoldRelease from "./HoldRelease"
 import PatternGame from "./PatternGame"
 import StopwatchGame from "./StopwatchGame"
+import QuickMath from "./QuickMath"
+import OddOneOut from "./OddOneOut"
 
 export const GAME_COMPONENTS = {
   "tap-race": TapRace,
@@ -24,4 +26,6 @@ export const GAME_COMPONENTS = {
   "hold-release": HoldRelease,
   "memory-pattern": PatternGame,
   "estimate-time": StopwatchGame,
+  "quick-math": QuickMath,
+  "odd-one-out": OddOneOut,
 }

@@ -3,6 +3,7 @@ import "./app-next.css"
 import { HISTORY_LIMIT, LS_HIST, LS_NAMES, STRIKES_WIN } from "./constants"
 import { pickGame } from "./utils/random"
 import { readStorage, writeStorage } from "./utils/storage"
+import { isMuted, toggleMuted } from "./utils/sound"
 import Scoreboard from "./components/Scoreboard"
 import SetupScreen from "./components/SetupScreen"
 import GameSelectScreen from "./components/GameSelectScreen"
@@ -38,6 +39,9 @@ export default function App() {
   const [round, setRound] = useState(1)
   const [matchMode, setMatchMode] = useState("full")
   const [history, setHistory] = useState(() => readStorage(LS_HIST, []))
+  const [muted, setMutedState] = useState(() => isMuted())
+
+  const handleToggleSound = () => setMutedState(toggleMuted())
 
   const resetRoundState = () => {
     setRound(1)
@@ -181,14 +185,20 @@ export default function App() {
   }
 
   const showScoreboard = screen === "game" || screen === "point" || screen === "tie" || (matchMode === "full" && screen === "result")
+  const showSoundToggle = screen === "setup" || screen === "intro" || screen === "select-game"
 
   return (
     <div className="app">
+      {showSoundToggle && (
+        <button className="sound-toggle" onClick={handleToggleSound} aria-label={muted ? "Unmute sounds" : "Mute sounds"}>
+          {muted ? "🔇" : "🔊"}
+        </button>
+      )}
       {showScoreboard && <Scoreboard players={players} round={round} seriesWins={seriesWins} game={game} matchMode={matchMode} />}
       {screen === "setup" && <SetupScreen history={history} onStart={startMatch} onChooseGame={openGameGallery} />}
       {screen === "select-game" && <GameSelectScreen players={players} onSelect={startSingleGame} onBack={handleRestart} />}
       {screen === "intro" && game && <GameIntroScreen game={game} players={players} seriesWins={seriesWins} matchMode={matchMode} onGo={() => setScreen("game")} />}
-      {screen === "game" && game && <GameRouter game={game} players={players} onResult={handleGamePoint} />}
+      {screen === "game" && game && <GameRouter game={game} players={players} onResult={handleGamePoint} pointIndex={seriesWins[0] + seriesWins[1]} />}
       {screen === "point" && pointResult && <PointScreen players={players} pointResult={pointResult} onNextPoint={handleNextPoint} />}
       {screen === "tie" && tieResult && <TieScreen gameName={tieResult.gameName} onReplay={handleReplayTie} />}
       {screen === "result" && result && <ResultScreen players={players} result={result} onNext={handleNextRound} />}

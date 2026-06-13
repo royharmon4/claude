@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from "react"
 import PassTo from "../components/PassTo"
+import { useTimers } from "../hooks/useTimers"
 import { chooseLoser } from "../utils/random"
+import { sfx, buzz } from "../utils/sound"
 
 export default function PrecisionMeter({ players, onResult, variant }) {
   const [phase, setPhase] = useState("p0-ready")
   const [scores, setScores] = useState([null, null])
+  // Speed is randomized once per game so both players face the same challenge.
+  const speedRef = useRef(variant === "balance" ? 110 + Math.random() * 50 : 56 + Math.random() * 26)
   const posRef = useRef(variant === "balance" ? -65 : 20)
   const dirRef = useRef(1)
   const rafRef = useRef(null)
   const lastRef = useRef(null)
   const activeRef = useRef(false)
   const barRef = useRef(null)
+  const { addTimeout } = useTimers()
 
   const stop = () => {
     activeRef.current = false
@@ -19,7 +24,7 @@ export default function PrecisionMeter({ players, onResult, variant }) {
 
   const start = () => {
     posRef.current = variant === "balance" ? -65 + Math.random() * 40 : 18 + Math.random() * 18
-    dirRef.current = 1
+    dirRef.current = Math.random() < 0.5 ? -1 : 1
     lastRef.current = null
     activeRef.current = true
 
@@ -28,7 +33,7 @@ export default function PrecisionMeter({ players, onResult, variant }) {
       if (lastRef.current == null) lastRef.current = now
       const dt = Math.min((now - lastRef.current) / 1000, 0.05)
       lastRef.current = now
-      posRef.current += dirRef.current * (variant === "balance" ? 120 : 62) * dt
+      posRef.current += dirRef.current * speedRef.current * dt
       const min = variant === "balance" ? -75 : 4
       const max = variant === "balance" ? 75 : 96
       if (posRef.current >= max) { posRef.current = max; dirRef.current = -1 }
@@ -46,7 +51,7 @@ export default function PrecisionMeter({ players, onResult, variant }) {
 
   const play = (next) => {
     setPhase(next)
-    window.setTimeout(start, 80)
+    addTimeout(start, 80)
   }
 
   const accuracyValue = (d) => Math.round(Math.max(0, Math.min(100, 100 - d * (variant === "balance" ? 1.3 : 2))))
@@ -55,7 +60,12 @@ export default function PrecisionMeter({ players, onResult, variant }) {
   const tap = () => {
     if (phase !== "p0-play" && phase !== "p1-play") return
     stop()
+    buzz(15)
     const dist = Math.abs(variant === "balance" ? posRef.current : posRef.current - 50)
+    const acc = accuracyValue(dist)
+    if (acc >= 90) sfx.good()
+    else if (acc >= 60) sfx.tick()
+    else sfx.bad()
     if (phase === "p0-play") {
       setScores([dist, null])
       setPhase("handoff")
@@ -63,7 +73,7 @@ export default function PrecisionMeter({ players, onResult, variant }) {
       const s0 = scores[0]
       setScores([s0, dist])
       setPhase("done")
-      window.setTimeout(() => onResult(chooseLoser(accuracyValue(s0), accuracyValue(dist))), 1200)
+      addTimeout(() => onResult(chooseLoser(accuracyValue(s0), accuracyValue(dist))), 1500)
     }
   }
 
@@ -75,7 +85,21 @@ export default function PrecisionMeter({ players, onResult, variant }) {
 
   if (phase === "handoff") return <PassTo name={players[1].name} color="#00e5ff" info={`${players[0].name}: ${accuracy(scores[0])} — beat it.`} onReady={() => play("p1-play")} />
 
-  if (phase === "done") return <div className="mini-outer"><div className="bang t-gold" style={{ fontSize: 40 }}>RESULTS!</div><div className="score-row"><div><span className="t-pink">{players[0].name}</span><br />{accuracy(scores[0])}</div><div><span className="t-cyan">{players[1].name}</span><br />{accuracy(scores[1])}</div></div><div className="command-sub">Highest accuracy wins. Same accuracy is a replay.</div></div>
+  if (phase === "done") {
+    const a0 = accuracyValue(scores[0])
+    const a1 = accuracyValue(scores[1])
+    const winnerIdx = a0 === a1 ? null : a0 > a1 ? 0 : 1
+    return (
+      <div className="mini-outer">
+        <div className="bang t-gold" style={{ fontSize: 40 }}>RESULTS!</div>
+        <div className="score-row">
+          <div><span className="t-pink">{players[0].name}</span><br />{accuracy(scores[0])}{winnerIdx === 0 ? " 🏆" : ""}</div>
+          <div><span className="t-cyan">{players[1].name}</span><br />{accuracy(scores[1])}{winnerIdx === 1 ? " 🏆" : ""}</div>
+        </div>
+        <div className="command-sub">{winnerIdx == null ? "Same accuracy — replay!" : `${players[winnerIdx].name} takes the point.`}</div>
+      </div>
+    )
+  }
 
   const player = phase.startsWith("p0") ? 0 : 1
   return (
