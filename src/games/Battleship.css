@@ -1,0 +1,122 @@
+/* Compact pass-and-play fleet battle */
+.bs-outer {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 18px;
+  text-align: center;
+}
+.bs-title { font-size: 34px; letter-spacing: 2px; }
+.bs-board {
+  display: grid;
+  grid-template-columns: 24px repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  width: min(92vw, 52vh, 390px);
+  flex-shrink: 0;
+}
+.bs-row { display: contents; }
+.bs-label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,.5);
+  font-family: 'Bangers', cursive;
+  font-size: 14px;
+  line-height: 1;
+}
+.bs-cell {
+  min-width: 0;
+  aspect-ratio: 1;
+  border: 1px solid rgba(0,229,255,.3);
+  border-radius: 7px;
+  background: linear-gradient(145deg, #123050, #0b1d38);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(15px, 5vw, 25px);
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: inset 0 0 10px rgba(0,229,255,.06);
+  transition: transform .08s, background .15s, border-color .15s;
+}
+.bs-cell:active:not(:disabled) { transform: scale(.9); }
+.bs-cell:disabled { opacity: 1; cursor: default; }
+.bs-cell.ship {
+  background: linear-gradient(145deg, #00a8bd, #006f8f);
+  border-color: #5ff4ff;
+  color: #d9fdff;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.16), 0 0 9px rgba(0,229,255,.22);
+}
+.bs-cell.hit {
+  background: radial-gradient(circle, #ff8a00 0, #ff2d2d 48%, #5b0717 100%);
+  border-color: #ffd36a;
+  animation: bsHit .28s cubic-bezier(.34,1.56,.64,1);
+}
+.bs-cell.miss {
+  background: #0a1225;
+  border-color: rgba(255,255,255,.14);
+  color: #a8d9ff;
+  font-size: 32px;
+}
+.bs-controls {
+  width: min(92vw, 390px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+}
+.bs-small-btn {
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 10px;
+  background: #12122c;
+  color: rgba(255,255,255,.82);
+  font-family: 'Bangers', cursive;
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+.bs-small-btn.on {
+  background: #00e5ff;
+  border-color: #7cf4ff;
+  color: #08081a;
+  box-shadow: 0 0 12px rgba(0,229,255,.3);
+}
+.bs-fleet-status {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: rgba(255,255,255,.65);
+}
+.bs-fleet-status span {
+  padding: 5px 8px;
+  border-radius: 9px;
+  background: rgba(255,255,255,.07);
+}
+.bs-fleet-status .sunk { color: #ff7b92; text-decoration: line-through; }
+.bs-feedback {
+  min-height: 34px;
+  font-size: 30px;
+  letter-spacing: 2px;
+  animation: pop .28s cubic-bezier(.34,1.56,.64,1);
+}
+.bs-feedback.hit, .bs-feedback.win { color: #ffd700; }
+.bs-feedback.miss { color: #8eb4d7; }
+@keyframes bsHit { from { transform: scale(.35) rotate(-12deg); } to { transform: scale(1) rotate(0); } }
+
+@media (max-height: 680px) {
+  .bs-outer { gap: 7px; padding-top: 8px; }
+  .bs-title { font-size: 28px; }
+  .bs-board { width: min(86vw, 46vh, 330px); gap: 3px; }
+  .bs-small-btn { min-height: 34px; padding: 6px 9px; font-size: 14px; }
+  .bs-feedback { font-size: 25px; min-height: 28px; }
+}
