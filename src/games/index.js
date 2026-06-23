@@ -12,6 +12,7 @@ import PatternGame from "./PatternGame"
 import StopwatchGame from "./StopwatchGame"
 import QuickMath from "./QuickMath"
 import OddOneOut from "./OddOneOut"
+import Battleship from "./Battleship"
 
 export const GAME_COMPONENTS = {
   "tap-race": TapRace,
@@ -28,4 +29,5 @@ export const GAME_COMPONENTS = {
   "estimate-time": StopwatchGame,
   "quick-math": QuickMath,
   "odd-one-out": OddOneOut,
+  "battleship": Battleship,
 }
