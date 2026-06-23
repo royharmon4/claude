@@ -13,4 +13,5 @@ export const GAMES = [
   { id: "estimate-time", name: "Estimate Time", emoji: "⌚", type: "pnp", pointsToWin: 1, rules: "Tap start, then stop when you think exactly 5 seconds have passed." },
   { id: "quick-math", name: "Quick Math", emoji: "🧮", type: "pnp", pointsToWin: 1, rules: "Both players get the same math problem. Correct and fastest answer wins." },
   { id: "odd-one-out", name: "Odd One Out", emoji: "🔍", type: "pnp", pointsToWin: 1, rules: "One tile is a slightly different shade. Spot it fastest. Wrong taps add a time penalty." },
+  { id: "battleship", name: "Battleship", emoji: "🚢", type: "pnp", pointsToWin: 1, rules: "Build a hidden fleet on a 6×6 grid, then take turns firing. Sink all three enemy ships to win." },
 ]
