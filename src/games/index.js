@@ -1,3 +1,4 @@
+import "./Battleship.css"
 import TapRace from "./TapRace"
 import ReactionDuel from "./ReactionDuel"
 import FakeoutTap from "./FakeoutTap"
